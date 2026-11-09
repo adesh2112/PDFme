@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <meta name="theme-color" content="#070B14">
+  <meta name="description" content="Edit, merge and create PDFs entirely in your browser. No uploads, no backend.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Pdfme — Browser PDF Toolkit</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23070B14'/><text y='22' x='4' font-size='22' fill='%2322D3EE'>P</text></svg>">
+  <link rel="preload" href="/fonts/space-grotesk-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/space-grotesk-600.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/fonts/fonts.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- SVG defs for gradients -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="grad-ring" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#8B5CF6"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div id="app">
+  <!-- Header -->
+  <header id="header" data-show-back="false">
+    <button class="back-btn" id="back-btn" aria-label="Go back">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      Back
+    </button>
+    <a href="#" class="logo" id="logo-btn" aria-label="Pdfme home">Pdfme</a>
+    <div style="width:72px"></div><!-- spacer -->
+  </header>
+
+  <!-- ── HOME SCREEN ── -->
+  <main class="screen active" id="screen-home" role="main">
+    <section class="hero" aria-labelledby="hero-headline">
+      <h1 class="hero-headline" id="hero-headline" aria-label="Edit, merge and make PDFs.">
+        <span class="word in">Edit,</span> <span class="word in">merge</span> <span class="word in">and</span> <span class="word in">make</span> <span class="word in">PDFs.</span>
+      </h1>
+      <p class="hero-sub in">Everything runs in your browser.<br>Your files never leave this device.</p>
+    </section>
+
+    <div class="tiles" role="list">
+
+      <!-- Edit PDF tile -->
+      <article class="tile tile-edit in" role="listitem" tabindex="0" id="tile-edit" aria-label="Edit PDF — open the PDF editor">
+        <svg class="tile-icon" viewBox="0 0 68 68" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+          <rect x="12" y="10" width="30" height="40" rx="3" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 2"/>
+          <line x1="18" y1="22" x2="36" y2="22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="18" y1="30" x2="34" y2="30" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="18" y1="38" x2="28" y2="38" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <g transform="translate(36,36) rotate(-45)">
+            <rect x="-3" y="-14" width="6" height="18" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+            <polygon points="-3,4 3,4 0,10" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+            <line x1="-3" y1="-10" x2="3" y2="-10" stroke="currentColor" stroke-width="1"/>
+          </g>
+        </svg>
+        <h2 class="tile-title">Edit PDF</h2>
+        <p class="tile-desc">Add text, draw, highlight, sign and annotate any PDF — right in your browser.</p>
+        <svg class="tile-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>
+        </svg>
+      </article>
+
+      <!-- Merge tile -->
+      <article class="tile in" role="listitem" tabindex="0" id="tile-merge" aria-label="Merge PDFs — combine multiple PDFs into one">
+        <svg class="tile-icon" viewBox="0 0 56 56" fill="none" aria-hidden="true">
+          <rect x="6" y="12" width="26" height="34" rx="3" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2"/>
+          <rect x="20" y="8" width="26" height="34" rx="3" stroke="currentColor" stroke-width="1.5" fill="none"/>
+          <line x1="26" y1="20" x2="38" y2="20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="26" y1="27" x2="38" y2="27" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M14 34 L20 34 L20 40" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+        <h2 class="tile-title">Merge PDFs</h2>
+        <p class="tile-desc">Combine two or more PDF files into a single document instantly.</p>
+        <svg class="tile-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>
+        </svg>
+      </article>
+
+      <!-- Photos tile -->
+      <article class="tile in" role="listitem" tabindex="0" id="tile-photos" aria-label="Photos to PDF — convert images into a PDF">
+        <svg class="tile-icon" viewBox="0 0 56 56" fill="none" aria-hidden="true">
+          <rect x="6" y="10" width="44" height="36" rx="4" stroke="currentColor" stroke-width="1.5"/>
+          <circle cx="18" cy="22" r="4" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M6 36 L18 24 L28 32 L38 20 L50 36" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <line x1="38" y1="10" x2="38" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="44" y1="10" x2="46" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="50" y1="12" x2="54" y2="10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <h2 class="tile-title">Photos to PDF</h2>
+        <p class="tile-desc">Turn your photos and images into a PDF. Reorder, resize and download.</p>
+        <svg class="tile-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>
+        </svg>
+      </article>
+
+    </div><!-- /tiles -->
+  </main>
+
+  <!-- ── MERGE SCREEN ── -->
+  <section class="screen" id="screen-merge" aria-labelledby="merge-heading">
+    <h2 id="merge-heading" style="font-size:1.5rem;font-weight:700;margin-bottom:8px;letter-spacing:-0.02em">Merge PDFs</h2>
+    <p style="color:var(--text-muted);font-size:0.875rem;margin-bottom:24px">Pick or drop PDF files (supports 20–50+ files), reorder them, then merge.</p>
+
+    <div class="glass-panel">
+      <div class="section-label-row">
+        <span class="section-label">Add PDFs</span>
+        <span class="merge-summary-pill" id="merge-summary" aria-live="polite">0 files · 0 pages · 0 B</span>
+      </div>
+
+      <div class="drop-zone" id="merge-drop" role="button" tabindex="0" aria-label="Click to pick PDF files, or drag and drop here">
+        <input type="file" id="merge-input" accept=".pdf,application/pdf" multiple aria-hidden="true">
+        <div class="drop-zone-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+          </svg>
+        </div>
+        <p class="drop-zone-text"><strong>Click to pick PDFs</strong> or drag and drop files anywhere here</p>
+      </div>
+
+      <div class="file-list scrollable-file-list" id="merge-list" role="list" aria-label="PDF files to merge"></div>
+
+      <div id="merge-empty" class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <p>Add PDF files above to get started. You can add more in multiple batches.</p>
+      </div>
+    </div>
+
+    <div class="action-row">
+      <button class="btn btn-primary" id="merge-btn" disabled aria-label="Merge PDFs and download">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M8 6H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-3"/>
+          <polyline points="15 3 12 6 9 3"/><line x1="12" y1="6" x2="12" y2="13"/>
+        </svg>
+        Merge PDFs
+      </button>
+      <button class="btn btn-ghost" id="merge-clear" disabled aria-label="Clear all files">Clear all</button>
+    </div>
+
+    <div class="progress-wrap" id="merge-progress" aria-live="polite">
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="merge-progress-bar"></div>
+      </div>
+      <div class="progress-info">
+        <span class="progress-label" id="merge-progress-label">Merging 0 of 0</span>
+        <button class="btn btn-ghost btn-sm" id="merge-cancel-btn" type="button" aria-label="Cancel merge">Cancel</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PHOTOS SCREEN ── -->
+  <section class="screen" id="screen-photos" aria-labelledby="photos-heading">
+    <h2 id="photos-heading" style="font-size:1.5rem;font-weight:700;margin-bottom:8px;letter-spacing:-0.02em">Photos to PDF</h2>
+    <p style="color:var(--text-muted);font-size:0.875rem;margin-bottom:24px">Pick photos, reorder them, choose a page size and create your PDF.</p>
+
+    <div class="glass-panel">
+      <p class="section-label">Add Photos</p>
+      <div class="drop-zone" id="photos-drop" role="button" tabindex="0" aria-label="Click to pick image files, or drag and drop here">
+        <input type="file" id="photos-input" accept="image/*" multiple aria-hidden="true">
+        <div class="drop-zone-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+        </div>
+        <p class="drop-zone-text"><strong>Click to pick images</strong> or drag and drop here</p>
+      </div>
+      <div class="file-list scrollable-file-list" id="photos-list" role="list" aria-label="Images to convert"></div>
+    </div>
+
+    <div class="glass-panel" style="margin-top:16px">
+      <p class="section-label">Page Size</p>
+      <div class="options-row" role="radiogroup" aria-label="Page size">
+        <label class="radio-pill checked" id="size-a4-label">
+          <input type="radio" name="page-size" value="a4" checked> A4
+        </label>
+        <label class="radio-pill" id="size-letter-label">
+          <input type="radio" name="page-size" value="letter"> US Letter
+        </label>
+        <label class="radio-pill" id="size-fit-label">
+          <input type="radio" name="page-size" value="fit"> Fit to Photo
+        </label>
+      </div>
+    </div>
+
+    <div class="action-row">
+      <button class="btn btn-primary" id="photos-btn" disabled aria-label="Create PDF from photos and download">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
+        Create PDF
+      </button>
+      <button class="btn btn-ghost" id="photos-clear" disabled>Clear</button>
+    </div>
+    <div class="progress-wrap" id="photos-progress" aria-live="polite">
+      <svg class="progress-ring" viewBox="0 0 36 36" aria-hidden="true">
+        <circle class="track" cx="18" cy="18" r="15"/>
+        <circle class="fill" cx="18" cy="18" r="15"/>
+      </svg>
+      <span class="progress-label">Creating PDF…</span>
+    </div>
+  </section>
+
+  <!-- ── EDIT SCREEN ── -->
+  <section class="screen" id="screen-edit" aria-labelledby="edit-heading">
+    <div class="edit-layout">
+      <!-- Top bar inside edit -->
+      <div class="glass-panel" style="margin:16px;border-radius:var(--r-lg);display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 20px">
+        <h2 id="edit-heading" style="font-size:1rem;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Edit PDF</h2>
+        <label class="check-row" style="margin:0;flex-shrink:0" for="flatten-check" title="Re-renders pages as images, permanently removing hidden original text">
+          <input type="checkbox" id="flatten-check">
+          <span><strong>Remove original text</strong><br><small style="color:var(--text-muted)">Pages become images</small></span>
+        </label>
+        <button class="btn btn-ghost" id="edit-open-btn" aria-label="Open a PDF file to edit" style="flex-shrink:0">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Open PDF
+        </button>
+        <input type="file" id="edit-input" accept=".pdf,application/pdf" style="display:none" aria-hidden="true">
+        <button class="btn btn-primary" id="save-btn" disabled aria-label="Download edited PDF">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download PDF
+        </button>
+      </div>
+
+      <!-- Canvas area -->
+      <div class="edit-canvas-area" id="edit-canvas-area" aria-label="PDF pages">
+        <div class="empty-state" id="edit-empty">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          <p>Open a PDF file above to start editing.<br>Your file stays on this device.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating toolbar -->
+    <div id="toolbar" role="toolbar" aria-label="PDF editing tools">
+      <div id="toolbar-indicator" aria-hidden="true"></div>
+
+      <button class="tool-btn" id="tool-edittext" aria-label="Edit existing text" aria-pressed="false" title="Edit text">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Edit
+      </button>
+      <button class="tool-btn" id="tool-addtext" aria-label="Add new text" aria-pressed="false" title="Add text">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Text
+      </button>
+      <button class="tool-btn" id="tool-draw" aria-label="Draw freehand" aria-pressed="false" title="Draw">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+        Draw
+      </button>
+      <button class="tool-btn tool-btn-highlight" id="tool-highlight" aria-label="Highlight area" aria-pressed="false" title="Highlight">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+        Mark
+      </button>
+      <button class="tool-btn" id="tool-sign" aria-label="Add signature" aria-pressed="false" title="Sign">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20H7L3 4"/><path d="M6.5 6.5C8 5 11 5 11 8s-3 4-3 7h4"/><line x1="20" y1="4" x2="20" y2="4" stroke-linecap="round"/></svg>
+        Sign
+      </button>
+      <button class="tool-btn" id="tool-addimage" aria-label="Add image" aria-pressed="false" title="Image">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        Image
+      </button>
+      <input type="file" id="addimage-input" accept="image/*" style="display:none" aria-hidden="true">
+
+      <div class="toolbar-sep" aria-hidden="true"></div>
+
+      <button class="tool-btn" id="tool-undo" aria-label="Undo last action" title="Undo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+        Undo
+      </button>
+
+      <button class="tool-btn" id="tool-redo" aria-label="Redo last action" title="Redo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Redo
+      </button>
+
+      <div class="toolbar-sep" aria-hidden="true"></div>
+
+      <div class="colour-picker-wrap" title="Pick colour">
+        <div class="colour-swatch" id="colour-swatch" style="background:#22D3EE" aria-hidden="true"></div>
+        <input type="color" id="colour-picker" value="#22D3EE" aria-label="Pick colour">
+      </div>
+
+      <input type="number" class="size-input" id="size-input" value="14" min="6" max="96" aria-label="Text size in points" title="Text size">
+    </div>
+  </section>
+
+</div><!-- /app -->
+
+<!-- Sign modal -->
+<div class="modal-overlay" id="sign-modal" role="dialog" aria-modal="true" aria-labelledby="sign-modal-title">
+  <div class="modal">
+    <h3 id="sign-modal-title">Draw Your Signature</h3>
+    <canvas id="sign-canvas" aria-label="Signature drawing area"></canvas>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="sign-clear">Clear</button>
+      <button class="btn btn-ghost" id="sign-cancel">Cancel</button>
+      <button class="btn btn-primary" id="sign-done">Use Signature</button>
+    </div>
+  </div>
+</div>
+
+<!-- Password modal -->
+<div class="modal-overlay" id="password-modal" role="dialog" aria-modal="true" aria-labelledby="password-modal-title">
+  <div class="modal">
+    <h3 id="password-modal-title">Password Required</h3>
+    <p id="password-modal-desc" style="color:var(--text-secondary);font-size:0.9rem;margin:8px 0 16px;">This PDF document is encrypted. Enter password to view and edit:</p>
+    <input type="password" id="password-input" class="password-field" placeholder="Enter password" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text);font-size:0.95rem;margin-bottom:16px;">
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="password-cancel">Cancel</button>
+      <button class="btn btn-primary" id="password-submit">Unlock PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+<script src="app.js" defer></script>
+</body>
+</html>

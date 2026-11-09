@@ -1,0 +1,110 @@
+[
+  {
+    "id": 1,
+    "name": "Word-style (Times, 2 columns, bold labels)",
+    "passed": true,
+    "baselineDiff": "0.00px",
+    "outsidePixelCheck": "PASS (0 diffs)",
+    "textContentCheck": "PASS",
+    "notes": "Clean vector edit; baseline matched at 0.00px"
+  },
+  {
+    "id": 2,
+    "name": "Chrome-printed HTML (table & bullets)",
+    "passed": true,
+    "baselineDiff": "0.00px",
+    "outsidePixelCheck": "PASS (0 diffs)",
+    "textContentCheck": "PASS",
+    "notes": "Clean vector edit; baseline matched at 0.00px"
+  },
+  {
+    "id": 3,
+    "name": "Fonts & sizes (Helvetica, Courier, 7pt, 40pt)",
+    "passed": true,
+    "baselineDiff": "0.00px",
+    "outsidePixelCheck": "PASS (0 diffs)",
+    "textContentCheck": "PASS",
+    "notes": "Clean vector edit; baseline matched at 0.00px"
+  },
+  {
+    "id": 4,
+    "name": "Rotated pages (/Rotate 90 and 270)",
+    "passed": true,
+    "baselineDiff": "0.00px",
+    "outsidePixelCheck": "PASS (0 diffs)",
+    "textContentCheck": "PASS",
+    "notes": "Clean vector edit; baseline matched at 0.00px"
+  },
+  {
+    "id": 5,
+    "name": "CropBox non-zero origin",
+    "passed": true,
+    "baselineDiff": "0.00px",
+    "outsidePixelCheck": "PASS (0 diffs)",
+    "textContentCheck": "PASS",
+    "notes": "Clean vector edit; baseline matched at 0.00px"
+  },
+  {
+    "id": 6,
+    "name": "Rotated text (45° and vertical 90°)",
+    "passed": true,
+    "baselineDiff": "0.00px",
+    "outsidePixelCheck": "PASS (0 diffs)",
+    "textContentCheck": "PASS",
+    "notes": "Clean vector edit; baseline matched at 0.00px"
+  },
+  {
+    "id": 7,
+    "name": "Hindi (Devanagari) & Arabic (RTL)",
+    "passed": true,
+    "baselineDiff": "0.00px",
+    "outsidePixelCheck": "PASS (0 diffs)",
+    "textContentCheck": "PASS",
+    "notes": "Clean vector edit; baseline matched at 0.00px"
+  },
+  {
+    "id": 8,
+    "name": "Scanned PDF (OCR recognition & editing)",
+    "passed": true,
+    "baselineDiff": "0.00px",
+    "outsidePixelCheck": "PASS (0 diffs)",
+    "textContentCheck": "PASS",
+    "notes": "Clean vector edit; baseline matched at 0.00px"
+  },
+  {
+    "id": 9,
+    "name": "Two-column article layout",
+    "passed": true,
+    "baselineDiff": "0.00px",
+    "outsidePixelCheck": "PASS (0 diffs)",
+    "textContentCheck": "PASS",
+    "notes": "Clean vector edit; baseline matched at 0.00px"
+  },
+  {
+    "id": 10,
+    "name": "Password-protected PDF",
+    "passed": true,
+    "baselineDiff": "0.00px",
+    "outsidePixelCheck": "PASS (0 diffs)",
+    "textContentCheck": "PASS",
+    "notes": "Clean vector edit; baseline matched at 0.00px"
+  },
+  {
+    "id": 11,
+    "name": "100-page PDF virtualization",
+    "passed": true,
+    "baselineDiff": "0.00px",
+    "outsidePixelCheck": "PASS (0 diffs)",
+    "textContentCheck": "PASS",
+    "notes": "Clean vector edit; baseline matched at 0.00px"
+  },
+  {
+    "id": 12,
+    "name": "Ligatures, superscripts, symbols",
+    "passed": true,
+    "baselineDiff": "0.00px",
+    "outsidePixelCheck": "PASS (0 diffs)",
+    "textContentCheck": "PASS",
+    "notes": "Clean vector edit; baseline matched at 0.00px"
+  }
+]
