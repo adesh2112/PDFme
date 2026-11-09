@@ -12,3 +12,6 @@ run-browser-tests.js
 run-lighthouse.js
 run-lighthouse-after.js
 download-vendor.js
+.env
+.env.*
+data/

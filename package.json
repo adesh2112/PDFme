@@ -1,0 +1,25 @@
+{
+  "name": "pdfme",
+  "version": "5.0.0",
+  "description": "Advanced PDF Productivity and Business Automation Platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test:guard": "node verify-editor-guard.js",
+    "test:razorpay": "node test-razorpay.js",
+    "test:all": "node run-platform-regression-tests.js"
+  },
+  "keywords": [
+    "pdf",
+    "editor",
+    "converter",
+    "workspace",
+    "business"
+  ],
+  "author": "PDFme",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^18.0.10",
+    "razorpay": "^2.9.8"
+  }
+}

@@ -14,6 +14,7 @@
   <link rel="preload" href="/fonts/space-grotesk-600.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/fonts/fonts.css">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="css/saas-platform.css">
 </head>
 <body>
 
@@ -29,24 +30,70 @@
 
 <div id="app">
   <!-- Header -->
-  <header id="header" data-show-back="false">
-    <button class="back-btn" id="back-btn" aria-label="Go back">
-      <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <polyline points="15 18 9 12 15 6"/>
-      </svg>
-      Back
-    </button>
-    <a href="#" class="logo" id="logo-btn" aria-label="Pdfme home">Pdfme</a>
-    <div style="width:72px"></div><!-- spacer -->
+  <header id="header" data-show-back="false" style="display:flex;flex-direction:column;gap:8px;padding:12px 24px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--glass-bg);backdrop-filter:blur(16px);z-index:900;">
+    <div style="display:flex;align-items:center;justify-content:space-between;width:100%;max-width:1400px;margin:0 auto;gap:16px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="back-btn" id="back-btn" aria-label="Go back" onclick="switchCategory('home')">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          Back
+        </button>
+        <a href="#" class="logo" id="logo-btn" aria-label="Pdfme home" onclick="switchCategory('home'); return false;">Pdfme</a>
+      </div>
+
+      <!-- Searchable Tools Directory Input -->
+      <div class="saas-search-wrap">
+        <svg class="saas-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="saas-search-input" class="saas-search-input" placeholder="Search all PDF tools..." oninput="filterTools(this.value)">
+        <span class="saas-search-kbd">Ctrl K</span>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Light / Dark Mode" aria-label="Toggle Theme">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="switchCategory('workspace')" style="font-size:0.8rem;padding:6px 12px;border-radius:8px;">Workspace</button>
+        <button class="btn btn-primary btn-sm" onclick="switchCategory('pricing')" style="font-size:0.8rem;padding:6px 14px;border-radius:8px;">Upgrade</button>
+      </div>
+    </div>
+
+    <!-- Category Navigation Bar -->
+    <nav class="saas-nav-categories" aria-label="Tool Categories" style="max-width:1400px;margin:0 auto;width:100%;">
+      <button class="saas-nav-link active" data-category="home" onclick="switchCategory('home')">Overview</button>
+      <button class="saas-nav-link" data-category="edit" onclick="switchCategory('edit')">1. Edit PDF</button>
+      <button class="saas-nav-link" data-category="convert" onclick="switchCategory('convert')">2. Convert PDF</button>
+      <button class="saas-nav-link" data-category="organize" onclick="switchCategory('organize')">3. Organize PDF</button>
+      <button class="saas-nav-link" data-category="ai" onclick="switchCategory('ai')">4. AI PDF Tools</button>
+      <button class="saas-nav-link" data-category="security" onclick="switchCategory('security')">5. PDF Security</button>
+      <button class="saas-nav-link" data-category="business" onclick="switchCategory('business')">6. Business Tools</button>
+      <button class="saas-nav-link" data-category="workspace" onclick="switchCategory('workspace')">7. Corporate Workspace</button>
+    </nav>
   </header>
 
   <!-- ── HOME SCREEN ── -->
   <main class="screen active" id="screen-home" role="main">
-    <section class="hero" aria-labelledby="hero-headline">
-      <h1 class="hero-headline" id="hero-headline" aria-label="Edit, merge and make PDFs.">
-        <span class="word in">Edit,</span> <span class="word in">merge</span> <span class="word in">and</span> <span class="word in">make</span> <span class="word in">PDFs.</span>
+    <section class="hero" aria-labelledby="hero-headline" style="text-align:center;padding:48px 20px 32px;">
+      <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,216,77,0.18);border:1px solid rgba(244,185,66,0.35);padding:6px 16px;border-radius:9999px;font-size:0.8rem;font-weight:700;color:var(--text);margin-bottom:18px;">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#F4B942;"></span>
+        Enterprise Document Suite &amp; Razorpay Verified
+      </div>
+      <h1 class="hero-headline" id="hero-headline" style="font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 800; line-height: 1.15; max-width: 900px; margin: 0 auto 16px auto; letter-spacing: -0.03em;">
+        Everything You Need to Work Smarter with Documents.
       </h1>
-      <p class="hero-sub in">Everything runs in your browser.<br>Your files never leave this device.</p>
+      <p class="hero-sub in" style="font-size: 1.15rem; max-width: 720px; margin: 0 auto 28px auto; color: var(--text-muted); line-height: 1.5;">
+        Edit, convert, organise, analyse, sign and automate your documents with one powerful PDF platform.
+      </p>
+      
+      <!-- Action CTAs -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin-bottom:36px;">
+        <button class="btn btn-primary" onclick="switchCategory('edit')" style="padding:12px 28px;font-size:1rem;border-radius:10px;">
+          Explore All Tools
+        </button>
+        <button class="btn btn-ghost" onclick="switchCategory('ai')" style="padding:12px 24px;font-size:1rem;border-radius:10px;border:1px solid var(--border);">
+          Explore AI Features &rarr;
+        </button>
+      </div>
     </section>
 
     <div class="tiles" role="list">
@@ -403,6 +450,413 @@
     </div>
   </section>
 
+  <!-- ── 2. CONVERT PDF SCREEN ── -->
+  <section class="screen" id="screen-convert" aria-labelledby="convert-heading">
+    <div class="saas-category-header">
+      <h2 class="saas-category-title" id="convert-heading">Convert PDF</h2>
+      <p class="saas-category-desc">High-fidelity format conversion between PDF, Microsoft Office (Word, Excel, PowerPoint), Images, and HTML.</p>
+    </div>
+    <div class="saas-tools-grid">
+      <div class="saas-tool-card" onclick="openToolModal('pdf-to-word', 'PDF to Word (DOCX)')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div><span class="saas-tool-badge">DOCX</span></div>
+        <h3 class="saas-tool-name">PDF to Word</h3>
+        <p class="saas-tool-desc">Extract text formatting, headings, and tables into genuine Microsoft Word .docx files.</p>
+        <span class="saas-tool-action">Convert now →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('word-to-pdf', 'Word (DOCX) to PDF')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 15 12 12 15 15"/><line x1="12" y1="12" x2="12" y2="21"/></svg></div><span class="saas-tool-badge">PDF</span></div>
+        <h3 class="saas-tool-name">Word to PDF</h3>
+        <p class="saas-tool-desc">Render Word documents into clean, paginated vector PDF files with preserved formatting.</p>
+        <span class="saas-tool-action">Convert now →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('pdf-to-excel', 'PDF to Excel (XLSX)')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg></div><span class="saas-tool-badge">XLSX</span></div>
+        <h3 class="saas-tool-name">PDF to Excel</h3>
+        <p class="saas-tool-desc">Extract financial and tabular records into structured Microsoft Excel .xlsx spreadsheets.</p>
+        <span class="saas-tool-action">Convert now →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('excel-to-pdf', 'Excel (XLSX) to PDF')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><polyline points="8 12 12 8 16 12"/><line x1="12" y1="8" x2="12" y2="16"/></svg></div><span class="saas-tool-badge">PDF</span></div>
+        <h3 class="saas-tool-name">Excel to PDF</h3>
+        <p class="saas-tool-desc">Render multi-column spreadsheets to landscape PDF documents with borders and zebra striping.</p>
+        <span class="saas-tool-action">Convert now →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('pdf-to-ppt', 'PDF to PowerPoint (PPTX)')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div><span class="saas-tool-badge">PPTX</span></div>
+        <h3 class="saas-tool-name">PDF to PowerPoint</h3>
+        <p class="saas-tool-desc">Convert document pages into Microsoft PowerPoint presentation slides.</p>
+        <span class="saas-tool-action">Convert now →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('ppt-to-pdf', 'PowerPoint (PPTX) to PDF')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><circle cx="12" cy="10" r="3"/></svg></div><span class="saas-tool-badge">PDF</span></div>
+        <h3 class="saas-tool-name">PowerPoint to PDF</h3>
+        <p class="saas-tool-desc">Render 16:9 widescreen presentation slides to print-ready vector PDF.</p>
+        <span class="saas-tool-action">Convert now →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('pdf-to-images', 'PDF to Images (JPG / PNG)')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div><span class="saas-tool-badge">IMG</span></div>
+        <h3 class="saas-tool-name">PDF to JPG / PNG</h3>
+        <p class="saas-tool-desc">Render each page to crisp 300 DPI image files bundled into a zip archive.</p>
+        <span class="saas-tool-action">Convert now →</span>
+      </div>
+      <div class="saas-tool-card" onclick="switchCategory('photos')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="13" r="2"/></svg></div><span class="saas-tool-badge">PDF</span></div>
+        <h3 class="saas-tool-name">JPG / PNG to PDF</h3>
+        <p class="saas-tool-desc">Batch convert multiple photos and images into a single PDF with A4, Letter, or Fit sizing.</p>
+        <span class="saas-tool-action">Open tool →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('html-to-pdf', 'HTML to PDF')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div><span class="saas-tool-badge">HTML</span></div>
+        <h3 class="saas-tool-name">HTML to PDF</h3>
+        <p class="saas-tool-desc">Parse semantic HTML and web content into clean vector PDF with styled headings and lists.</p>
+        <span class="saas-tool-action">Convert now →</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 3. ORGANIZE PDF SCREEN ── -->
+  <section class="screen" id="screen-organize" aria-labelledby="organize-heading">
+    <div class="saas-category-header">
+      <h2 class="saas-category-title" id="organize-heading">Organize PDF</h2>
+      <p class="saas-category-desc">Rearrange, split, merge, compress, and number multi-page PDF documents.</p>
+    </div>
+    <div class="saas-tools-grid">
+      <div class="saas-tool-card" onclick="switchCategory('merge')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="13" height="13" rx="2"/><rect x="8" y="8" width="13" height="13" rx="2"/></svg></div><span class="saas-tool-badge">MERGE</span></div>
+        <h3 class="saas-tool-name">Merge PDFs</h3>
+        <p class="saas-tool-desc">Combine 20 to 50+ PDF files into a single unified document with page ranges.</p>
+        <span class="saas-tool-action">Open tool →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('split-pdf', 'Split PDF')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg></div><span class="saas-tool-badge">SPLIT</span></div>
+        <h3 class="saas-tool-name">Split PDF</h3>
+        <p class="saas-tool-desc">Split into individual single-page documents or custom page ranges.</p>
+        <span class="saas-tool-action">Split now →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('compress-pdf', 'Compress PDF')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg></div><span class="saas-tool-badge">OPTIMIZE</span></div>
+        <h3 class="saas-tool-name">Compress PDF</h3>
+        <p class="saas-tool-desc">Reduce PDF file size via stream deflating while retaining visual clarity.</p>
+        <span class="saas-tool-action">Compress now →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('page-numbers', 'Add Page Numbers')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="14"/></svg></div><span class="saas-tool-badge">NUMBERS</span></div>
+        <h3 class="saas-tool-name">Add Page Numbers</h3>
+        <p class="saas-tool-desc">Add customizable page numbering in any of 6 positions with font controls.</p>
+        <span class="saas-tool-action">Add numbers →</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 4. AI PDF TOOLS SCREEN ── -->
+  <section class="screen" id="screen-ai" aria-labelledby="ai-heading">
+    <div class="saas-category-header">
+      <h2 class="saas-category-title" id="ai-heading">AI PDF Tools</h2>
+      <p class="saas-category-desc">State-of-the-art document intelligence powered by AI: Q&A with citations, contract risk analysis, and multi-doc chat.</p>
+    </div>
+    <div class="saas-tools-grid">
+      <div class="saas-tool-card" onclick="openToolModal('ai-assistant', 'AI PDF Assistant')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div><span class="saas-tool-badge ai">AI ASSISTANT</span></div>
+        <h3 class="saas-tool-name">AI PDF Assistant</h3>
+        <p class="saas-tool-desc">Ask questions about your PDF and receive verified answers with exact page references.</p>
+        <span class="saas-tool-action">Ask questions →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('ai-summarizer', 'AI Document Summarizer')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div><span class="saas-tool-badge ai">SUMMARIZE</span></div>
+        <h3 class="saas-tool-name">AI Document Summarizer</h3>
+        <p class="saas-tool-desc">Generate executive summaries, key bullet points, deadlines, and actionable items.</p>
+        <span class="saas-tool-action">Summarize →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('ai-contract', 'Contract Analyzer')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><circle cx="12" cy="9" r="0.5"/></svg></div><span class="saas-tool-badge ai">RISK AUDIT</span></div>
+        <h3 class="saas-tool-name">Contract Analyzer</h3>
+        <p class="saas-tool-desc">Identify termination clauses, payment terms, unusual liabilities, and missing terms.</p>
+        <span class="saas-tool-action">Analyze contract →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('doc-compare', 'Document Comparison')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="18" rx="1"/><rect x="13" y="3" width="8" height="18" rx="1"/></svg></div><span class="saas-tool-badge">DIFF ENGINE</span></div>
+        <h3 class="saas-tool-name">Document Comparison</h3>
+        <p class="saas-tool-desc">Side-by-side visual diff highlighting added, deleted, or modified numbers and dates.</p>
+        <span class="saas-tool-action">Compare docs →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('invoice-extractor', 'Invoice Data Extractor')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="6" y1="8" x2="18" y2="8"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="6" y1="16" x2="12" y2="16"/></svg></div><span class="saas-tool-badge">EXTRACT</span></div>
+        <h3 class="saas-tool-name">Invoice Data Extractor</h3>
+        <p class="saas-tool-desc">Extract invoice numbers, vendor, GSTIN, dates, and amounts into Excel (.xlsx) spreadsheets.</p>
+        <span class="saas-tool-action">Extract data →</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 5. PDF SECURITY SCREEN ── -->
+  <section class="screen" id="screen-security" aria-labelledby="security-heading">
+    <div class="saas-category-header">
+      <h2 class="saas-category-title" id="security-heading">PDF Security</h2>
+      <p class="saas-category-desc">Protect confidential business documents with encryption, permanent redaction, and metadata sanitization.</p>
+    </div>
+    <div class="saas-tools-grid">
+      <div class="saas-tool-card" onclick="openToolModal('password-protect', 'Password Protect PDF')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div><span class="saas-tool-badge">ENCRYPTION</span></div>
+        <h3 class="saas-tool-name">Password Protect PDF</h3>
+        <p class="saas-tool-desc">Encrypt document with user & owner passwords and restrict unauthorized viewing.</p>
+        <span class="saas-tool-action">Protect now →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('remove-metadata', 'Sanitize Metadata')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></div><span class="saas-tool-badge">PRIVACY</span></div>
+        <h3 class="saas-tool-name">Remove Metadata</h3>
+        <p class="saas-tool-desc">Permanently wipe Author, Creator, Subject, Dates, and hidden XMP tracking streams.</p>
+        <span class="saas-tool-action">Sanitize now →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('esign', 'E-Signature Workflow')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7L3 4"/><path d="M6.5 6.5C8 5 11 5 11 8s-3 4-3 7h4"/></svg></div><span class="saas-tool-badge">AUDIT TRAIL</span></div>
+        <h3 class="saas-tool-name">E-Signature Workflow</h3>
+        <p class="saas-tool-desc">Place signature fields, dates, and append tamper-evident SHA-256 audit certificates.</p>
+        <span class="saas-tool-action">Sign document →</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 6. BUSINESS TOOLS SCREEN ── -->
+  <section class="screen" id="screen-business" aria-labelledby="business-heading">
+    <div class="saas-category-header">
+      <h2 class="saas-category-title" id="business-heading">Business Tools</h2>
+      <p class="saas-category-desc">Generate professional, branded corporate documents with tax calculations, letterheads, and bulk spreadsheet generation.</p>
+    </div>
+    <div class="saas-tools-grid">
+      <div class="saas-tool-card" onclick="openToolModal('gen-invoice', 'Invoice Generator')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div><span class="saas-tool-badge">GST READY</span></div>
+        <h3 class="saas-tool-name">Invoice Generator</h3>
+        <p class="saas-tool-desc">Create professional invoices with configurable GST (CGST/SGST/IGST), discounts, and bank details.</p>
+        <span class="saas-tool-action">Generate invoice →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('gen-offer', 'Offer Letter Generator')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><span class="saas-tool-badge">HR TOOL</span></div>
+        <h3 class="saas-tool-name">Offer Letter Generator</h3>
+        <p class="saas-tool-desc">Generate executive employee offer letters with CTC breakdown, probation, and acceptance signature.</p>
+        <span class="saas-tool-action">Generate letter →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('gen-payslip', 'Salary Slip Generator')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></div><span class="saas-tool-badge">PAYSLIP</span></div>
+        <h3 class="saas-tool-name">Salary Slip Generator</h3>
+        <p class="saas-tool-desc">Itemize employee earnings, PF & TDS deductions, and calculate net take-home salary.</p>
+        <span class="saas-tool-action">Generate payslip →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('gen-exp-cert', 'Experience Certificate')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg></div><span class="saas-tool-badge">CERTIFICATE</span></div>
+        <h3 class="saas-tool-name">Experience Certificate</h3>
+        <p class="saas-tool-desc">Generate official employment verification and conduct certificates on company letterhead.</p>
+        <span class="saas-tool-action">Generate certificate →</span>
+      </div>
+      <div class="saas-tool-card" onclick="openToolModal('gen-bulk', 'Bulk Document Generator')">
+        <div class="saas-tool-card-top"><div class="saas-tool-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div><span class="saas-tool-badge pro">BATCH PRO</span></div>
+        <h3 class="saas-tool-name">Bulk Document Generator</h3>
+        <p class="saas-tool-desc">Upload Excel/CSV spreadsheets to generate hundreds of personalized PDFs in batch zip downloads.</p>
+        <span class="saas-tool-action">Run batch job →</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 7. CORPORATE WORKSPACE SCREEN ── -->
+  <section class="screen" id="screen-workspace" aria-labelledby="workspace-heading">
+    <div class="saas-category-header">
+      <h2 class="saas-category-title" id="workspace-heading">Corporate Workspace</h2>
+      <p class="saas-category-desc">Multi-tenant team collaboration, document approval workflows, version history, and organization activity logs.</p>
+    </div>
+    <div class="glass-panel" style="margin-bottom:20px;padding:24px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <h3 style="font-size:1.15rem;font-weight:700;">Acme Global Workspace</h3>
+          <p style="font-size:0.85rem;color:var(--text-muted);">Organization Plan: <strong>PRO (Active)</strong> | Role: <strong>Admin</strong></p>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="alert('Invitation link copied to clipboard!')">+ Invite Team Member</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;margin-bottom:24px;">
+        <div style="padding:14px;border-radius:10px;background:var(--bg-elevated);border:1px solid var(--border);">
+          <span style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;font-weight:600;">Total Documents</span>
+          <p style="font-size:1.5rem;font-weight:700;margin-top:4px;">24</p>
+        </div>
+        <div style="padding:14px;border-radius:10px;background:var(--bg-elevated);border:1px solid var(--border);">
+          <span style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;font-weight:600;">Pending Approvals</span>
+          <p style="font-size:1.5rem;font-weight:700;margin-top:4px;color:#F59E0B;">3</p>
+        </div>
+        <div style="padding:14px;border-radius:10px;background:var(--bg-elevated);border:1px solid var(--border);">
+          <span style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;font-weight:600;">Approved</span>
+          <p style="font-size:1.5rem;font-weight:700;margin-top:4px;color:#10B981;">21</p>
+        </div>
+      </div>
+
+      <h4 style="font-size:0.95rem;font-weight:600;margin-bottom:12px;">Recent Organization Documents</h4>
+      <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.85rem;text-align:left;">
+          <thead style="background:var(--bg-elevated);border-bottom:1px solid var(--border);">
+            <tr>
+              <th style="padding:10px 14px;">Document Name</th>
+              <th style="padding:10px 14px;">Version</th>
+              <th style="padding:10px 14px;">Status</th>
+              <th style="padding:10px 14px;">Updated</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:10px 14px;font-weight:500;">Q1 Financial Summary.pdf</td>
+              <td style="padding:10px 14px;">v2.1</td>
+              <td style="padding:10px 14px;"><span style="font-size:0.7rem;padding:3px 8px;border-radius:9999px;background:rgba(16,185,129,0.15);color:#10B981;font-weight:600;">APPROVED</span></td>
+              <td style="padding:10px 14px;color:var(--text-muted);">2 hours ago</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:10px 14px;font-weight:500;">Vendor Master Agreement.pdf</td>
+              <td style="padding:10px 14px;">v1.0</td>
+              <td style="padding:10px 14px;"><span style="font-size:0.7rem;padding:3px 8px;border-radius:9999px;background:rgba(245,158,11,0.15);color:#F59E0B;font-weight:600;">PENDING APPROVAL</span></td>
+              <td style="padding:10px 14px;color:var(--text-muted);">Yesterday</td>
+            </tr>
+            <tr>
+              <td style="padding:10px 14px;font-weight:500;">Staff Employment Contract.pdf</td>
+              <td style="padding:10px 14px;">v1.3</td>
+              <td style="padding:10px 14px;"><span style="font-size:0.7rem;padding:3px 8px;border-radius:9999px;background:rgba(16,185,129,0.15);color:#10B981;font-weight:600;">APPROVED</span></td>
+              <td style="padding:10px 14px;color:var(--text-muted);">3 days ago</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 8. PRICING & MONETIZATION SCREEN ── -->
+  <section class="screen" id="screen-pricing" aria-labelledby="pricing-heading">
+    <div class="saas-category-header" style="text-align:center;max-width:700px;margin:0 auto 28px auto;">
+      <h2 class="saas-category-title" id="pricing-heading">Simple, Transparent Pricing</h2>
+      <p class="saas-category-desc">Unlock advanced PDF automation, OCR, AI Assistant, and team workspace collaboration powered by secure Razorpay payments.</p>
+      
+      <!-- Billing Cycle Switcher -->
+      <div style="margin-top:20px;">
+        <div class="billing-switcher" role="tablist">
+          <button class="billing-toggle-pill active" id="billing-toggle-monthly" onclick="setBillingCycle('monthly')" role="tab">Monthly Billing</button>
+          <button class="billing-toggle-pill" id="billing-toggle-yearly" onclick="setBillingCycle('yearly')" role="tab">
+            Annual Billing <span class="discount-tag">Save 30%</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="pricing-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+      <!-- Free Plan -->
+      <div class="pricing-card">
+        <h3 class="pricing-title">Free</h3>
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:14px;">Essential browser PDF tools for individuals.</p>
+        <div class="pricing-price">₹0 <span id="price-period-free">/ month</span></div>
+        <p id="price-note-free" style="font-size:0.75rem;color:var(--text-muted);margin-top:-10px;margin-bottom:16px;">Forever free</p>
+        <ul class="pricing-features">
+          <li class="pricing-feature-item">✓ In-place PDF editor</li>
+          <li class="pricing-feature-item">✓ Basic PDF merge & photos tool</li>
+          <li class="pricing-feature-item">✓ Standard conversion tools</li>
+          <li class="pricing-feature-item">✓ 100% private browser processing</li>
+        </ul>
+        <button class="btn btn-ghost" style="width:100%;">Current Plan</button>
+      </div>
+
+      <!-- Pro Plan -->
+      <div class="pricing-card featured">
+        <span class="pricing-badge">Popular</span>
+        <h3 class="pricing-title">Pro</h3>
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:14px;">For power users and document professionals.</p>
+        <div class="pricing-price"><span id="price-val-pro" style="font-size:2rem;font-weight:800;color:inherit;">₹149</span> <span id="price-period-pro">/ month</span></div>
+        <p id="price-note-pro" style="font-size:0.75rem;color:var(--text-muted);margin-top:-10px;margin-bottom:16px;">Billed monthly</p>
+        <ul class="pricing-features">
+          <li class="pricing-feature-item">✓ Everything in Free</li>
+          <li class="pricing-feature-item">✓ Advanced PDF editing & export</li>
+          <li class="pricing-feature-item">✓ High-speed batch conversions</li>
+          <li class="pricing-feature-item">✓ Permanent text redaction</li>
+          <li class="pricing-feature-item">✓ Unlimited document sizes</li>
+        </ul>
+        <button class="btn btn-primary" style="width:100%;" onclick="subscribeToPlan('PRO')">Upgrade to Pro</button>
+      </div>
+
+      <!-- Premium Plan -->
+      <div class="pricing-card">
+        <h3 class="pricing-title">Premium</h3>
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:14px;">AI Document Intelligence & OCR extraction.</p>
+        <div class="pricing-price"><span id="price-val-premium" style="font-size:2rem;font-weight:800;color:inherit;">₹299</span> <span id="price-period-premium">/ month</span></div>
+        <p id="price-note-premium" style="font-size:0.75rem;color:var(--text-muted);margin-top:-10px;margin-bottom:16px;">Billed monthly</p>
+        <ul class="pricing-features">
+          <li class="pricing-feature-item">✓ Everything in Pro</li>
+          <li class="pricing-feature-item">✓ AI PDF Assistant & Contract Analysis</li>
+          <li class="pricing-feature-item">✓ Tesseract OCR & Searchable PDFs</li>
+          <li class="pricing-feature-item">✓ Invoice Data Extractor to Excel</li>
+          <li class="pricing-feature-item">✓ Document Comparison Diff Engine</li>
+        </ul>
+        <button class="btn btn-primary" style="width:100%;" onclick="subscribeToPlan('PREMIUM')">Upgrade to Premium</button>
+      </div>
+
+      <!-- Business Plan -->
+      <div class="pricing-card">
+        <h3 class="pricing-title">Business</h3>
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:14px;">For teams, legal departments & corporate.</p>
+        <div class="pricing-price"><span id="price-val-business" style="font-size:2rem;font-weight:800;color:inherit;">₹799</span> <span id="price-period-business">/ month</span></div>
+        <p id="price-note-business" style="font-size:0.75rem;color:var(--text-muted);margin-top:-10px;margin-bottom:16px;">Billed monthly</p>
+        <ul class="pricing-features">
+          <li class="pricing-feature-item">✓ Everything in Premium</li>
+          <li class="pricing-feature-item">✓ Multi-tenant Team Workspace</li>
+          <li class="pricing-feature-item">✓ Role Permissions (Admin, Editor, Viewer)</li>
+          <li class="pricing-feature-item">✓ Document Approval Workflows</li>
+          <li class="pricing-feature-item">✓ Full Audit Activity Logs & History</li>
+          <li class="pricing-feature-item">✓ Bulk Document Automation (200+ docs)</li>
+        </ul>
+        <button class="btn btn-primary" style="width:100%;" onclick="subscribeToPlan('BUSINESS')">Upgrade to Business</button>
+      </div>
+    </div>
+
+    <!-- Quick Checkout Test Action -->
+    <div style="margin-top:28px;text-align:center;">
+      <button class="btn btn-ghost btn-sm" onclick="initiateRazorpayCheckout({ planKey: 'TEST_PLAN', planName: 'Razorpay Verification Test Order', amountPaise: 1000, amountINR: 10, billingCycle: 'test' })">
+        Test Razorpay Standard Checkout (₹10 Test Order)
+      </button>
+    </div>
+
+    <!-- Billing & Transaction History -->
+    <div style="margin-top:48px;max-width:1000px;margin-left:auto;margin-right:auto;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <h3 style="font-size:1.15rem;font-weight:700;">Verified Billing & Payment History</h3>
+        <button class="btn btn-ghost btn-sm" onclick="loadBillingHistory()">Refresh Records</button>
+      </div>
+      <div class="billing-table-wrap">
+        <table class="billing-table">
+          <thead>
+            <tr>
+              <th>Payment ID</th>
+              <th>Plan</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody id="billing-history-table-body">
+            <tr>
+              <td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">
+                No verified billing records yet. Complete a payment via Razorpay to see transactions here.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Interactive Tool Modal Drawer ── -->
+  <div class="saas-modal-backdrop" id="saas-tool-modal" role="dialog" aria-modal="true" aria-labelledby="saas-modal-tool-title">
+    <div class="saas-modal-box">
+      <div class="saas-modal-header">
+        <h3 class="saas-modal-title" id="saas-modal-tool-title">PDF Tool</h3>
+        <button class="saas-modal-close" onclick="closeToolModal()" aria-label="Close dialog">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="saas-modal-body" id="saas-tool-modal-body">
+        <div id="saas-modal-tool-content"></div>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /app -->
 
 <!-- Sign modal -->
@@ -434,6 +888,20 @@
 <!-- Toast container -->
 <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true"></div>
 
+<!-- PDFme Platform Engines -->
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script src="js/razorpay-checkout.js"></script>
+<script src="lib/zip-util.js"></script>
+<script src="lib/office-converter.js"></script>
+<script src="lib/pdf-conversion-engine.js"></script>
+<script src="lib/pdf-organization-engine.js"></script>
+<script src="lib/pdf-security-engine.js"></script>
+<script src="lib/business-docs-engine.js"></script>
+<script src="lib/esign-engine.js"></script>
+<script src="lib/doc-comparison-engine.js"></script>
+<script src="lib/invoice-extractor-engine.js"></script>
+<script src="js/tools-ai.js"></script>
+<script src="js/platform-ui.js"></script>
 <script src="app.js" defer></script>
 </body>
 </html>

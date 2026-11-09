@@ -1,9 +1,13 @@
 'use strict';
+require('dotenv').config();
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { handleAiRequest } = require('./api/ai-router.js');
+const { handleWorkspaceRequest } = require('./api/workspace-router.js');
+const { handleRazorpayRequest } = require('./api/razorpay-router.js');
 
-const PORT = 8080;
+const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
 
 const MIME = {
@@ -22,9 +26,63 @@ const MIME = {
 };
 
 const server = http.createServer((req, res) => {
-  let reqPath = decodeURIComponent(req.url.split('?')[0]);
-  if (reqPath === '/') reqPath = '/index.html';
-  const filePath = path.join(ROOT, reqPath);
+  // Enable CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  const parsedUrl = req.url.split('?')[0];
+  const reqPath = decodeURIComponent(parsedUrl);
+
+  // 1. API Route Handlers
+  if (reqPath.startsWith('/api/')) {
+    let bodyData = '';
+    req.on('data', chunk => {
+      bodyData += chunk;
+      // Max 10MB payload limit
+      if (bodyData.length > 10 * 1024 * 1024) {
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Payload too large (10MB limit).' }));
+        req.destroy();
+      }
+    });
+
+    req.on('end', () => {
+      let parsed = {};
+      try {
+        if (bodyData) parsed = JSON.parse(bodyData);
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON payload.' }));
+        return;
+      }
+
+      if (reqPath.startsWith('/api/ai/')) {
+        handleAiRequest(req, res, reqPath, parsed);
+      } else if (
+        reqPath === '/api/create-order' ||
+        reqPath === '/api/verify-payment' ||
+        reqPath === '/api/payment-config' ||
+        reqPath.startsWith('/api/razorpay/') ||
+        reqPath.startsWith('/api/billing/') ||
+        reqPath.startsWith('/api/admin/payments')
+      ) {
+        handleRazorpayRequest(req, res, reqPath, parsed);
+      } else {
+        handleWorkspaceRequest(req, res, reqPath, parsed);
+      }
+    });
+    return;
+  }
+
+  // 2. Static File Serving
+  let filePath = path.join(ROOT, reqPath === '/' ? '/index.html' : reqPath);
 
   fs.stat(filePath, (err, stats) => {
     if (err || !stats.isFile()) {
@@ -38,7 +96,6 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, {
       'Content-Type': contentType,
       'Content-Length': stats.size,
-      'Access-Control-Allow-Origin': '*',
       'Cache-Control': 'no-cache',
     });
     fs.createReadStream(filePath).pipe(res);
@@ -53,7 +110,10 @@ server.on('error', (err) => {
   }
 });
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`Server listening on http://127.0.0.1:${PORT}`);
-});
+if (require.main === module) {
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`PDFme Server listening on http://0.0.0.0:${PORT}`);
+  });
+}
 
+module.exports = server;
