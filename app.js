@@ -838,6 +838,36 @@ function makeSortable(list, getItems, onReorder) {
   const passwordCancel = document.getElementById('password-cancel');
   const passwordDesc = document.getElementById('password-modal-desc');
 
+  /* Floating Formatting Toolbar DOM refs */
+  const formatToolbar = document.getElementById('text-format-toolbar');
+  const fmtDrag = document.getElementById('fmt-drag');
+  const fmtFontFamily = document.getElementById('fmt-font-family');
+  const fmtSizeDec = document.getElementById('fmt-size-dec');
+  const fmtFontSize = document.getElementById('fmt-font-size');
+  const fmtSizeInc = document.getElementById('fmt-size-inc');
+  const fmtBold = document.getElementById('fmt-bold');
+  const fmtItalic = document.getElementById('fmt-italic');
+  const fmtUnderline = document.getElementById('fmt-underline');
+  const fmtColorBtn = document.getElementById('fmt-color-btn');
+  const fmtColorBar = document.getElementById('fmt-color-bar');
+  const fmtColorPicker = document.getElementById('fmt-color-picker');
+  const fmtAlignLeft = document.getElementById('fmt-align-left');
+  const fmtAlignCenter = document.getElementById('fmt-align-center');
+  const fmtAlignRight = document.getElementById('fmt-align-right');
+  const fmtSpacingBtn = document.getElementById('fmt-spacing-btn');
+  const fmtSpacingPopover = document.getElementById('fmt-spacing-popover');
+  const fmtLineSpacing = document.getElementById('fmt-line-spacing');
+  const fmtLineSpacingVal = document.getElementById('fmt-line-spacing-val');
+  const fmtLetterSpacing = document.getElementById('fmt-letter-spacing');
+  const fmtLetterSpacingVal = document.getElementById('fmt-letter-spacing-val');
+  const fmtUndo = document.getElementById('fmt-undo');
+  const fmtRedo = document.getElementById('fmt-redo');
+  const fmtDelete = document.getElementById('fmt-delete');
+
+  let activeSegment = null;
+  let activePageData = null;
+  let currentSelectionFrame = null;
+
   let activeTool = 'tool-edittext';
   let drawColour = '#22D3EE';
   let textSize = 14;
@@ -929,6 +959,7 @@ function makeSortable(list, getItems, onReorder) {
       await ensurePdfJs();
 
       emptyState.style.display = 'none';
+      deselectSegment();
       canvasArea.innerHTML = '';
       pages = [];
       undoStack = [];
@@ -963,10 +994,15 @@ function makeSortable(list, getItems, onReorder) {
 
       saveBtn.disabled = false;
 
-      // Get page 1 dimensions to set default aspect ratio
+      // Get page 1 dimensions to set natural dimensions
       const firstPage = await pdfDoc.getPage(1);
-      const vp1 = firstPage.getViewport({ scale: 1 });
-      const defaultAspect = vp1.width / vp1.height;
+      const vp1 = firstPage.getViewport({ scale: 1.0 });
+      let displayScale = 1.0;
+      if (canvasArea && canvasArea.clientWidth && (canvasArea.clientWidth - 48) < vp1.width) {
+        displayScale = Math.max(0.2, (canvasArea.clientWidth - 48) / vp1.width);
+      }
+      const initialCssW = Math.round(vp1.width * displayScale);
+      const initialCssH = Math.round(vp1.height * displayScale);
 
       // Disconnect prior observer if any
       if (intersectionObs) intersectionObs.disconnect();
@@ -981,11 +1017,12 @@ function makeSortable(list, getItems, onReorder) {
         const wrap = document.createElement('div');
         wrap.className = 'page-wrap';
         wrap.dataset.pageIdx = i;
-        wrap.style.width = '100%';
-        wrap.style.maxWidth = '800px';
+        wrap.style.width = `${initialCssW}px`;
+        wrap.style.height = `${initialCssH}px`;
+        wrap.style.maxWidth = '100%';
         wrap.style.aspectRatio = `${vp1.width} / ${vp1.height}`;
         wrap.style.contentVisibility = 'auto';
-        wrap.style.containIntrinsicSize = `800px ${800 / defaultAspect}px`;
+        wrap.style.containIntrinsicSize = `${initialCssW}px ${initialCssH}px`;
 
         const placeholder = document.createElement('div');
         placeholder.className = 'page-placeholder';
@@ -1145,46 +1182,73 @@ function makeSortable(list, getItems, onReorder) {
     const pjsPage = await pdfDoc.getPage(pageNum);
     pageData.pjsPage = pjsPage;
 
-    // Scale = 2 for crisp rendering and max canvas side of 3000px
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    let scale = Math.max(dpr * 1.5, 2.0);
-    let viewport = pjsPage.getViewport({ scale });
+    // Natural 1.0 viewport in points
+    const baseVp = pjsPage.getViewport({ scale: 1.0 });
 
-    const maxSide = 3000;
-    const largestSide = Math.max(viewport.width, viewport.height);
-    if (largestSide > maxSide) {
-      scale = scale * (maxSide / largestSide);
-      viewport = pjsPage.getViewport({ scale });
+    // Display scale: 1.0 on desktop (original dimensions), or fit to width on smaller viewports
+    let displayScale = 1.0;
+    if (canvasArea && canvasArea.clientWidth && (canvasArea.clientWidth - 48) < baseVp.width) {
+      displayScale = Math.max(0.2, (canvasArea.clientWidth - 48) / baseVp.width);
     }
 
+    const viewport = pjsPage.getViewport({ scale: displayScale });
     pageData.viewport = viewport;
+    pageData.displayScale = displayScale;
 
-    // Set page container aspect ratio based on rotated viewport
+    // Retina / crisp rendering backing store
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let renderScale = Math.max(dpr * 1.5, 2.0);
+    let renderViewport = pjsPage.getViewport({ scale: displayScale * renderScale });
+
+    const maxSide = 3000;
+    const largestSide = Math.max(renderViewport.width, renderViewport.height);
+    if (largestSide > maxSide) {
+      renderScale = renderScale * (maxSide / largestSide);
+      renderViewport = pjsPage.getViewport({ scale: displayScale * renderScale });
+    }
+
+    pageData.renderViewport = renderViewport;
+    pageData.renderScale = renderScale;
+
+    const cssW = Math.round(viewport.width);
+    const cssH = Math.round(viewport.height);
+
+    pageData.wrap.style.width = `${cssW}px`;
+    pageData.wrap.style.height = `${cssH}px`;
+    pageData.wrap.style.maxWidth = '100%';
     pageData.wrap.style.aspectRatio = `${viewport.width} / ${viewport.height}`;
 
     const canvas = pageData.canvas;
-    canvas.width = Math.floor(viewport.width);
-    canvas.height = Math.floor(viewport.height);
-    canvas.style.width = '100%';
-    canvas.style.height = 'auto';
+    canvas.width = Math.floor(renderViewport.width);
+    canvas.height = Math.floor(renderViewport.height);
+    canvas.style.width = `${cssW}px`;
+    canvas.style.height = `${cssH}px`;
 
     const overlay = pageData.overlay;
-    overlay.width = Math.floor(viewport.width);
-    overlay.height = Math.floor(viewport.height);
-    overlay.style.width = '100%';
-    overlay.style.height = '100%';
+    overlay.width = Math.floor(renderViewport.width);
+    overlay.height = Math.floor(renderViewport.height);
+    overlay.style.width = `${cssW}px`;
+    overlay.style.height = `${cssH}px`;
 
     const textLayer = pageData.textLayer;
-    textLayer.style.width = '100%';
-    textLayer.style.height = '100%';
+    textLayer.style.width = `${cssW}px`;
+    textLayer.style.height = `${cssH}px`;
 
     // Start render task
     const ctx = canvas.getContext('2d', { alpha: false });
-    const renderTask = pjsPage.render({ canvasContext: ctx, viewport });
+    const renderTask = pjsPage.render({ canvasContext: ctx, viewport: renderViewport });
     pageData.renderTask = renderTask;
 
     await renderTask.promise;
     pageData.renderTask = null;
+
+    // Populate commonObjs font definitions
+    try {
+      await pjsPage.getOperatorList();
+    } catch (e) {}
+
+    // Setup overlay context scaling for crisp high-DPI annotations
+    pageData.ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
 
     // Build editable text segments
     textLayer.innerHTML = '';
@@ -1243,6 +1307,10 @@ function makeSortable(list, getItems, onReorder) {
       const pageToFree = renderedPages.shift();
       if (!pageToFree) break;
 
+      if (activeSegment && pageToFree.segments && pageToFree.segments.includes(activeSegment)) {
+        deselectSegment();
+      }
+
       pageToFree.canvas.width = 0;
       pageToFree.canvas.height = 0;
       pageToFree.canvas.style.display = 'none';
@@ -1267,10 +1335,11 @@ function makeSortable(list, getItems, onReorder) {
      ══════════════════════════════════════════════════════════ */
   function detectFontProperties(fontName, pjsPage, textContent) {
     let rawName = '';
+    let obj = null;
     try {
       if (pjsPage && pjsPage.commonObjs && pjsPage.commonObjs.has(fontName)) {
-        const obj = pjsPage.commonObjs.get(fontName);
-        if (obj && obj.name) rawName = obj.name;
+        obj = pjsPage.commonObjs.get(fontName);
+        if (obj) rawName = obj.name || obj.loadedName || '';
       }
     } catch (e) { }
 
@@ -1282,21 +1351,53 @@ function makeSortable(list, getItems, onReorder) {
     // Strip subset prefixes like "ABCDEF+" or "BAAAAA+"
     const cleanedName = rawName.replace(/^[A-Z]{6}\+/, '');
 
-    const bold = /bold|black|heavy|semibold|demi/i.test(cleanedName);
-    const italic = /italic|oblique|slanted/i.test(cleanedName);
+    const isBold = (obj && (obj.bold || obj.black)) ||
+      /bold|black|heavy|semibold|demi|w[6-9]|700|800|900/i.test(cleanedName) ||
+      /bold|black|heavy|semibold|demi/i.test(rawName);
+
+    const isItalic = (obj && obj.italic) ||
+      /italic|oblique|slanted/i.test(cleanedName) ||
+      /italic|oblique|slanted/i.test(rawName);
 
     let family = 'Helvetica';
-    if (/times|roman|serif|georgia|cambria|garamond|book|palatino|minion|century/i.test(cleanedName)) {
+    const fallback = (obj && obj.fallbackName) || (textContent && textContent.styles && textContent.styles[fontName] && textContent.styles[fontName].fontFamily) || '';
+
+    if (/times|roman|serif|cambria|garamond|book|palatino|minion|century/i.test(cleanedName) || fallback === 'serif') {
       family = 'Times';
-    } else if (/courier|mono|consolas|menlo/i.test(cleanedName)) {
+    } else if (/courier|mono|consolas|menlo|fixed/i.test(cleanedName) || fallback === 'monospace') {
       family = 'Courier';
+    } else if (/georgia/i.test(cleanedName)) {
+      family = 'Georgia';
     }
 
     let cssFamily = "'Helvetica Neue', Helvetica, Arial, sans-serif";
     if (family === 'Times') cssFamily = "'Times New Roman', Times, serif";
     else if (family === 'Courier') cssFamily = "'Courier New', Courier, monospace";
+    else if (family === 'Georgia') cssFamily = "Georgia, serif";
+    else {
+      const baseName = cleanedName.replace(/[-_]?(bold|italic|regular|semibold|demi|light|medium|black|heavy|mt)/gi, '').trim();
+      if (baseName && baseName.length > 2 && !/^g_d/i.test(baseName)) {
+        cssFamily = `'${baseName}', 'Helvetica Neue', Helvetica, Arial, sans-serif`;
+      }
+    }
 
-    return { rawName, cleanedName, family, bold, italic, cssFamily };
+    return { rawName, cleanedName, family, bold: !!isBold, italic: !!isItalic, cssFamily };
+  }
+
+  function getCssFamily(family) {
+    switch (family) {
+      case 'Times': return "'Times New Roman', Times, serif";
+      case 'Courier': return "'Courier New', Courier, monospace";
+      case 'Georgia': return "Georgia, serif";
+      case 'Space Grotesk': return "'Space Grotesk', sans-serif";
+      case 'Noto Sans': return "'Noto Sans', sans-serif";
+      case 'Noto Serif': return "'Noto Serif', serif";
+      case 'Noto Sans Devanagari': return "'Noto Sans Devanagari', sans-serif";
+      case 'Noto Sans Arabic': return "'Noto Sans Arabic', sans-serif";
+      case 'Helvetica':
+      default:
+        return "'Helvetica Neue', Helvetica, Arial, sans-serif";
+    }
   }
 
   /* ══════════════════════════════════════════════════════════
@@ -1335,13 +1436,13 @@ function makeSortable(list, getItems, onReorder) {
     // 1. Process items: convert transform into user space geometry and text's rotated frame
     const processed = [];
     for (const item of items) {
-      if (!item.str || item.str.trim() === '' || (item.width === 0 && item.height === 0)) continue;
+      if (!item.str || item.str.trim() === '') continue;
 
-      const tx = item.transform; // [a, b, c, d, e, f] in PDF user space
+      const tx = item.transform || [1, 0, 0, 1, 0, 0];
       const a = tx[0], b = tx[1], c = tx[2], d = tx[3], e = tx[4], f = tx[5];
       let fontSize = Math.hypot(a, b);
       if (fontSize < 0.001) fontSize = Math.hypot(c, d);
-      if (fontSize < 0.001) continue;
+      if (fontSize < 0.001) fontSize = 12;
 
       let angle = Math.atan2(b, a);
       if (angle <= -Math.PI) angle += 2 * Math.PI;
@@ -1351,56 +1452,31 @@ function makeSortable(list, getItems, onReorder) {
       const sinA = Math.sin(angle);
 
       // In the text's rotated frame:
-      // u is along baseline (text direction)
-      // v is normal to baseline (line direction)
       const u = e * cosA + f * sinA;
       const v = -e * sinA + f * cosA;
-      const width = Math.abs(item.width);
-
-      // Check if item contains wide spacing or multiple words that should be split
-      if (/\s{2,}/.test(item.str)) {
-        const parts = item.str.split(/(\s{2,})/);
-        let curU = u;
-        const totalChars = item.str.length;
-        for (let pi = 0; pi < parts.length; pi++) {
-          const part = parts[pi];
-          const partW = width * (part.length / totalChars);
-          if (part.trim().length > 0) {
-            const e_sub = curU * cosA - v * sinA;
-            const f_sub = curU * sinA + v * cosA;
-            processed.push({
-              str: part,
-              e: e_sub,
-              f: f_sub,
-              u: curU,
-              v: v,
-              fontSize,
-              angle,
-              width: partW,
-              fontName: item.fontName || '',
-              dir: item.dir || 'ltr',
-              hasEOL: pi === parts.length - 1 ? item.hasEOL : false,
-            });
-          }
-          curU += partW;
-        }
-      } else {
-        processed.push({
-          str: item.str,
-          e, f, u, v,
-          fontSize, angle,
-          width,
-          fontName: item.fontName || '',
-          dir: item.dir || 'ltr',
-          hasEOL: item.hasEOL || false,
-        });
+      let width = Math.abs(item.width);
+      if (width <= 0) {
+        width = item.str.length * (fontSize * 0.55);
       }
+
+      const fontProps = detectFontProperties(item.fontName, pjsPage, textContent);
+
+      processed.push({
+        str: item.str,
+        e, f, u, v,
+        fontSize, angle,
+        width,
+        fontName: item.fontName || '',
+        fontProps,
+        dir: item.dir || 'ltr',
+        hasEOL: item.hasEOL || false,
+      });
     }
 
     if (processed.length === 0) return [];
 
     // 2. Group items into lines in their own rotated frame:
-    // First partition by angle (within 0.05 rad / ~3 degrees)
+    // Partition by angle (within 0.05 rad / ~2.8 degrees)
     const angleGroups = [];
     for (const item of processed) {
       let foundGroup = false;
@@ -1447,16 +1523,18 @@ function makeSortable(list, getItems, onReorder) {
           const prevEndU = prev.u + prev.width;
           const gap = curr.u - prevEndU;
 
-          // Conditions to start a new segment:
-          // (a) prev hasEOL
-          // (b) gap >= 2.5 * fontSize or 8% page width (multi-column / table)
-          // (c) gap < -0.5 * fontSize (overlapping/reverse)
-          const maxColGap = Math.min(prev.fontSize * 2.5, pageWidth * 0.08);
-          if (prev.hasEOL || gap >= maxColGap || gap < -prev.fontSize * 0.5) {
+          // Merge ONLY if same styling and close adjacent spacing
+          const sameStyle = prev.fontProps.bold === curr.fontProps.bold &&
+                            prev.fontProps.italic === curr.fontProps.italic &&
+                            prev.fontProps.family === curr.fontProps.family &&
+                            Math.abs(prev.fontSize - curr.fontSize) <= 1.0;
+
+          const maxWordGap = prev.fontSize * 1.5;
+          if (!sameStyle || prev.hasEOL || gap > maxWordGap || gap < -prev.fontSize * 0.5) {
             segments.push(buildSegmentFromItems(segItems, pjsPage, textContent));
             segItems = [curr];
           } else {
-            // Check spacing: insert space if gap > 15% font size
+            // Insert space if gap is between words
             if (gap > prev.fontSize * 0.15 && !prev.str.endsWith(' ') && !curr.str.startsWith(' ')) {
               curr.insertSpaceBefore = true;
             }
@@ -1469,11 +1547,11 @@ function makeSortable(list, getItems, onReorder) {
       }
     }
 
-    // Filter segments clipped off the page or empty
+    // Filter segments clipped completely off the page
     return segments.filter(s => {
       if (!s || !s.originalText || s.originalText.trim().length === 0) return false;
       const pt = viewport.convertToViewportPoint(s.x, s.baselineY);
-      if (pt[0] < -80 || pt[0] > viewport.width + 80 || pt[1] < -80 || pt[1] > viewport.height + 80) {
+      if (pt[0] < -150 || pt[0] > viewport.width + 150 || pt[1] < -150 || pt[1] > viewport.height + 150) {
         return false;
       }
       return true;
@@ -1481,7 +1559,7 @@ function makeSortable(list, getItems, onReorder) {
   }
 
   function buildSegmentFromItems(items, pjsPage, textContent) {
-    if (items.length === 0) return null;
+    if (!items || items.length === 0) return null;
 
     let text = items[0].str;
     for (let i = 1; i < items.length; i++) {
@@ -1496,9 +1574,9 @@ function makeSortable(list, getItems, onReorder) {
     const fontSize = first.fontSize;
     const angle = first.angle;
     const angleDeg = angle * (180 / Math.PI);
-    const width = (last.u + last.width) - first.u;
+    const width = Math.max((last.u + last.width) - first.u, first.width);
 
-    const fontProps = detectFontProperties(first.fontName, pjsPage, textContent);
+    const fontProps = first.fontProps || detectFontProperties(first.fontName, pjsPage, textContent);
 
     // Detect if RTL text (Arabic or Hebrew)
     const isRtl = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\u0590-\u05FF]/.test(text);
@@ -1508,8 +1586,12 @@ function makeSortable(list, getItems, onReorder) {
       currentText: null,
       x,
       baselineY,
+      origX: x,
+      origBaselineY: baselineY,
       fontSize,
+      origFontSize: fontSize,
       width,
+      origWidth: width,
       angle,
       angleDeg,
       fontName: fontProps.cleanedName,
@@ -1518,10 +1600,14 @@ function makeSortable(list, getItems, onReorder) {
       cssFamily: fontProps.cssFamily,
       bold: fontProps.bold,
       italic: fontProps.italic,
+      underline: false,
       isRtl,
       dir: isRtl ? 'rtl' : 'ltr',
       color: '#000000',
       bgColor: '#ffffff',
+      textAlign: isRtl ? 'right' : 'left',
+      lineSpacing: 1.25,
+      letterSpacing: 0,
       span: null,
     };
   }
@@ -1596,10 +1682,431 @@ function makeSortable(list, getItems, onReorder) {
   }
 
   /* ══════════════════════════════════════════════════════════
+     FLOATING FORMATTING TOOLBAR & SELECTION FRAME CONTROLLER
+     ══════════════════════════════════════════════════════════ */
+  function hideFormatToolbar() {
+    if (formatToolbar) formatToolbar.style.display = 'none';
+    if (fmtSpacingPopover) fmtSpacingPopover.style.display = 'none';
+  }
+
+  function updateFormatToolbarPosition() {
+    if (!activeSegment || !activeSegment.span || !formatToolbar) {
+      hideFormatToolbar();
+      return;
+    }
+    const rect = activeSegment.span.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return;
+
+    formatToolbar.style.display = 'flex';
+    const tbRect = formatToolbar.getBoundingClientRect();
+    const tbW = tbRect.width || 560;
+    const tbH = tbRect.height || 44;
+
+    let left = rect.left + (rect.width / 2) - (tbW / 2);
+    let top = rect.top - tbH - 12;
+
+    const minLeft = 16;
+    const maxLeft = window.innerWidth - tbW - 16;
+    left = Math.max(minLeft, Math.min(maxLeft, left));
+
+    if (top < 70) {
+      top = rect.bottom + 12;
+    }
+
+    formatToolbar.style.left = `${left}px`;
+    formatToolbar.style.top = `${top}px`;
+  }
+
+  function updateFormatToolbarValues(seg) {
+    if (!seg) return;
+    if (fmtFontFamily) fmtFontFamily.value = seg.fontFamily || 'Helvetica';
+    if (fmtFontSize) fmtFontSize.value = Math.round(seg.fontSize || 14);
+    if (fmtBold) fmtBold.classList.toggle('active', !!seg.bold);
+    if (fmtItalic) fmtItalic.classList.toggle('active', !!seg.italic);
+    if (fmtUnderline) fmtUnderline.classList.toggle('active', !!seg.underline);
+
+    const c = seg.color || '#000000';
+    if (fmtColorBar) fmtColorBar.style.background = c;
+    if (fmtColorPicker) fmtColorPicker.value = (c.startsWith('#') && c.length === 7) ? c : '#000000';
+
+    const align = seg.textAlign || (seg.isRtl ? 'right' : 'left');
+    if (fmtAlignLeft) fmtAlignLeft.classList.toggle('active', align === 'left');
+    if (fmtAlignCenter) fmtAlignCenter.classList.toggle('active', align === 'center');
+    if (fmtAlignRight) fmtAlignRight.classList.toggle('active', align === 'right');
+
+    const ls = seg.lineSpacing || 1.25;
+    if (fmtLineSpacing) fmtLineSpacing.value = ls;
+    if (fmtLineSpacingVal) fmtLineSpacingVal.textContent = ls.toFixed(2);
+
+    const ltrS = seg.letterSpacing || 0;
+    if (fmtLetterSpacing) fmtLetterSpacing.value = ltrS;
+    if (fmtLetterSpacingVal) fmtLetterSpacingVal.textContent = `${ltrS}px`;
+
+    updateUndoRedoBtns();
+  }
+
+  function selectSegment(seg, pageData) {
+    if (activeSegment && activeSegment !== seg) {
+      deselectSegment();
+    }
+    activeSegment = seg;
+    activePageData = pageData;
+
+    seg.span.style.color = seg.color || '#000000';
+    seg.span.style.background = seg.bgColor || '#ffffff';
+    seg.span.classList.add('active-editing');
+
+    updateFormatToolbarValues(seg);
+    updateFormatToolbarPosition();
+  }
+
+  function deselectSegment() {
+    if (!activeSegment) return;
+    const seg = activeSegment;
+    const span = seg.span;
+
+    if (span) {
+      span.classList.remove('active-editing');
+      const text = span.innerText;
+      if (text !== seg.originalText || (seg.currentText !== null && seg.currentText !== seg.originalText)) {
+        seg.currentText = text;
+        span.style.color = seg.color || '#000000';
+        span.style.background = seg.bgColor || '#ffffff';
+        span.classList.add('edited');
+      } else {
+        span.style.color = 'transparent';
+        span.style.background = 'transparent';
+        span.classList.remove('edited');
+        seg.currentText = null;
+      }
+    }
+
+    removeSelectionFrame();
+    hideFormatToolbar();
+    activeSegment = null;
+    activePageData = null;
+  }
+
+  function createSelectionFrame(seg, pageData) {
+    // Natural inline editing without invasive transform boxes
+  }
+
+  function removeSelectionFrame() {
+    if (currentSelectionFrame) {
+      currentSelectionFrame.remove();
+      currentSelectionFrame = null;
+    }
+  }
+
+  function updateSelectionFramePos(seg, frame) {
+    // No-op for selection frame
+  }
+
+  function attachSelectionFrameEvents(frame, dragBar, edgeE, edgeW, seg, pageData) {
+    // No-op
+  }
+
+  function setupFormatToolbarListeners() {
+    if (!formatToolbar) return;
+
+    if (fmtFontFamily) {
+      fmtFontFamily.addEventListener('change', () => {
+        if (!activeSegment) return;
+        const oldFamily = activeSegment.fontFamily;
+        const newFamily = fmtFontFamily.value;
+        activeSegment.fontFamily = newFamily;
+        activeSegment.cssFamily = getCssFamily(newFamily);
+        activeSegment.span.style.fontFamily = activeSegment.cssFamily;
+        activeSegment.currentText = activeSegment.span.innerText;
+        activeSegment.span.classList.add('edited');
+        pushUndo({ type: 'format', seg: activeSegment, prop: 'fontFamily', oldVal: oldFamily, newVal: newFamily });
+        updateSelectionFramePos(activeSegment, currentSelectionFrame);
+        updateFormatToolbarPosition();
+      });
+    }
+
+    function changeFontSize(delta) {
+      if (!activeSegment) return;
+      const oldSize = activeSegment.fontSize;
+      const newSize = Math.max(4, Math.min(144, Math.round(oldSize + delta)));
+      if (newSize === oldSize) return;
+
+      activeSegment.fontSize = newSize;
+      if (fmtFontSize) fmtFontSize.value = newSize;
+      const vp = activePageData.viewport;
+      const screenFontSize = newSize * vp.scale;
+      activeSegment.span.style.fontSize = `${screenFontSize}px`;
+      activeSegment.currentText = activeSegment.span.innerText;
+      activeSegment.span.classList.add('edited');
+      pushUndo({ type: 'format', seg: activeSegment, prop: 'fontSize', oldVal: oldSize, newVal: newSize });
+      updateSelectionFramePos(activeSegment, currentSelectionFrame);
+      updateFormatToolbarPosition();
+    }
+
+    if (fmtSizeDec) fmtSizeDec.addEventListener('click', () => changeFontSize(-1));
+    if (fmtSizeInc) fmtSizeInc.addEventListener('click', () => changeFontSize(1));
+    if (fmtFontSize) {
+      fmtFontSize.addEventListener('change', () => {
+        if (!activeSegment) return;
+        const val = parseInt(fmtFontSize.value, 10);
+        if (isNaN(val)) return;
+        const oldSize = activeSegment.fontSize;
+        const newSize = Math.max(4, Math.min(144, val));
+        activeSegment.fontSize = newSize;
+        const vp = activePageData.viewport;
+        activeSegment.span.style.fontSize = `${newSize * vp.scale}px`;
+        activeSegment.currentText = activeSegment.span.innerText;
+        activeSegment.span.classList.add('edited');
+        pushUndo({ type: 'format', seg: activeSegment, prop: 'fontSize', oldVal: oldSize, newVal: newSize });
+        updateSelectionFramePos(activeSegment, currentSelectionFrame);
+        updateFormatToolbarPosition();
+      });
+    }
+
+    if (fmtBold) {
+      fmtBold.addEventListener('click', () => {
+        if (!activeSegment) return;
+        const oldBold = !!activeSegment.bold;
+        activeSegment.bold = !oldBold;
+        fmtBold.classList.toggle('active', activeSegment.bold);
+        activeSegment.span.style.fontWeight = activeSegment.bold ? 'bold' : 'normal';
+        activeSegment.currentText = activeSegment.span.innerText;
+        activeSegment.span.classList.add('edited');
+        pushUndo({ type: 'format', seg: activeSegment, prop: 'bold', oldVal: oldBold, newVal: activeSegment.bold });
+        updateSelectionFramePos(activeSegment, currentSelectionFrame);
+      });
+    }
+
+    if (fmtItalic) {
+      fmtItalic.addEventListener('click', () => {
+        if (!activeSegment) return;
+        const oldItalic = !!activeSegment.italic;
+        activeSegment.italic = !oldItalic;
+        fmtItalic.classList.toggle('active', activeSegment.italic);
+        activeSegment.span.style.fontStyle = activeSegment.italic ? 'italic' : 'normal';
+        activeSegment.currentText = activeSegment.span.innerText;
+        activeSegment.span.classList.add('edited');
+        pushUndo({ type: 'format', seg: activeSegment, prop: 'italic', oldVal: oldItalic, newVal: activeSegment.italic });
+        updateSelectionFramePos(activeSegment, currentSelectionFrame);
+      });
+    }
+
+    if (fmtUnderline) {
+      fmtUnderline.addEventListener('click', () => {
+        if (!activeSegment) return;
+        const oldUnderline = !!activeSegment.underline;
+        activeSegment.underline = !oldUnderline;
+        fmtUnderline.classList.toggle('active', activeSegment.underline);
+        activeSegment.span.style.textDecoration = activeSegment.underline ? 'underline' : 'none';
+        activeSegment.currentText = activeSegment.span.innerText;
+        activeSegment.span.classList.add('edited');
+        pushUndo({ type: 'format', seg: activeSegment, prop: 'underline', oldVal: oldUnderline, newVal: activeSegment.underline });
+      });
+    }
+
+    if (fmtColorBtn && fmtColorPicker) {
+      fmtColorBtn.addEventListener('click', () => fmtColorPicker.click());
+      fmtColorPicker.addEventListener('input', (e) => {
+        if (!activeSegment) return;
+        const newColor = e.target.value;
+        if (fmtColorBar) fmtColorBar.style.background = newColor;
+        activeSegment.span.style.color = newColor;
+      });
+      fmtColorPicker.addEventListener('change', (e) => {
+        if (!activeSegment) return;
+        const oldColor = activeSegment.color;
+        const newColor = e.target.value;
+        activeSegment.color = newColor;
+        if (fmtColorBar) fmtColorBar.style.background = newColor;
+        activeSegment.span.style.color = newColor;
+        activeSegment.currentText = activeSegment.span.innerText;
+        activeSegment.span.classList.add('edited');
+        pushUndo({ type: 'format', seg: activeSegment, prop: 'color', oldVal: oldColor, newVal: newColor });
+      });
+    }
+
+    function setAlignment(align) {
+      if (!activeSegment) return;
+      const oldAlign = activeSegment.textAlign || 'left';
+      activeSegment.textAlign = align;
+      if (fmtAlignLeft) fmtAlignLeft.classList.toggle('active', align === 'left');
+      if (fmtAlignCenter) fmtAlignCenter.classList.toggle('active', align === 'center');
+      if (fmtAlignRight) fmtAlignRight.classList.toggle('active', align === 'right');
+      activeSegment.span.style.textAlign = align;
+      activeSegment.currentText = activeSegment.span.innerText;
+      activeSegment.span.classList.add('edited');
+      pushUndo({ type: 'format', seg: activeSegment, prop: 'textAlign', oldVal: oldAlign, newVal: align });
+    }
+
+    if (fmtAlignLeft) fmtAlignLeft.addEventListener('click', () => setAlignment('left'));
+    if (fmtAlignCenter) fmtAlignCenter.addEventListener('click', () => setAlignment('center'));
+    if (fmtAlignRight) fmtAlignRight.addEventListener('click', () => setAlignment('right'));
+
+    if (fmtSpacingBtn && fmtSpacingPopover) {
+      fmtSpacingBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isHidden = fmtSpacingPopover.style.display === 'none';
+        fmtSpacingPopover.style.display = isHidden ? 'flex' : 'none';
+      });
+    }
+    if (fmtLineSpacing) {
+      fmtLineSpacing.addEventListener('input', (e) => {
+        if (!activeSegment) return;
+        const val = parseFloat(e.target.value);
+        if (fmtLineSpacingVal) fmtLineSpacingVal.textContent = val.toFixed(2);
+        activeSegment.lineSpacing = val;
+        activeSegment.span.style.lineHeight = `${val}`;
+        activeSegment.currentText = activeSegment.span.innerText;
+        activeSegment.span.classList.add('edited');
+        updateSelectionFramePos(activeSegment, currentSelectionFrame);
+        updateFormatToolbarPosition();
+      });
+    }
+    if (fmtLetterSpacing) {
+      fmtLetterSpacing.addEventListener('input', (e) => {
+        if (!activeSegment) return;
+        const val = parseFloat(e.target.value);
+        if (fmtLetterSpacingVal) fmtLetterSpacingVal.textContent = `${val}px`;
+        activeSegment.letterSpacing = val;
+        activeSegment.span.style.letterSpacing = `${val}px`;
+        activeSegment.currentText = activeSegment.span.innerText;
+        activeSegment.span.classList.add('edited');
+        updateSelectionFramePos(activeSegment, currentSelectionFrame);
+        updateFormatToolbarPosition();
+      });
+    }
+
+    if (fmtDelete) {
+      fmtDelete.addEventListener('click', () => {
+        if (!activeSegment) return;
+        const seg = activeSegment;
+        const oldText = seg.span.innerText;
+        pushUndo({ type: 'deleteText', seg, oldText });
+        seg.currentText = '';
+        seg.span.innerText = '';
+        seg.span.style.background = seg.bgColor;
+        seg.span.classList.add('edited');
+        deselectSegment();
+        toast('Text element deleted.', 'info');
+      });
+    }
+
+    if (fmtDrag) {
+      fmtDrag.onpointerdown = (e) => {
+        if (!activeSegment || !activeSegment.span || !activePageData) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const seg = activeSegment;
+        const span = seg.span;
+        const pageData = activePageData;
+        const vp = pageData.viewport;
+
+        const startClientX = e.clientX;
+        const startClientY = e.clientY;
+        const startLeft = parseFloat(span.style.left) || 0;
+        const startTop = parseFloat(span.style.top) || 0;
+        const origPdfX = seg.x;
+        const origPdfY = seg.baselineY;
+
+        function onPointerMove(moveEvent) {
+          const dxScreen = moveEvent.clientX - startClientX;
+          const dyScreen = moveEvent.clientY - startClientY;
+
+          let newLeft = startLeft + dxScreen;
+          let newTop = startTop + dyScreen;
+
+          const maxLeft = vp.width - (span.offsetWidth || 20);
+          const maxTop = vp.height - (span.offsetHeight || 20);
+          newLeft = Math.max(0, Math.min(maxLeft, newLeft));
+          newTop = Math.max(0, Math.min(maxTop, newTop));
+
+          span.style.left = `${newLeft}px`;
+          span.style.top = `${newTop}px`;
+          updateFormatToolbarPosition();
+        }
+
+        function onPointerUp() {
+          window.removeEventListener('pointermove', onPointerMove);
+          window.removeEventListener('pointerup', onPointerUp);
+
+          const curLeft = parseFloat(span.style.left) || 0;
+          const curTop = parseFloat(span.style.top) || 0;
+          const screenFontSize = seg.fontSize * vp.scale;
+          const screenAscent = screenFontSize * 0.82;
+          const curBaselineX = curLeft;
+          const curBaselineY = curTop + screenAscent;
+
+          const newPdfPt = vp.convertToPdfPoint(curBaselineX, curBaselineY);
+          const oldX = origPdfX;
+          const oldY = origPdfY;
+
+          seg.x = newPdfPt[0];
+          seg.baselineY = newPdfPt[1];
+          seg.currentText = span.innerText;
+          span.classList.add('edited');
+
+          if (Math.abs(seg.x - oldX) > 0.5 || Math.abs(seg.baselineY - oldY) > 0.5) {
+            pushUndo({
+              type: 'reposition',
+              seg,
+              oldPos: { x: oldX, y: oldY, left: startLeft, top: startTop },
+              newPos: { x: seg.x, y: seg.baselineY, left: curLeft, top: curTop },
+            });
+          }
+        }
+
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+      };
+    }
+
+    if (fmtUndo) {
+      fmtUndo.addEventListener('click', () => {
+        performUndo();
+        if (activeSegment) updateFormatToolbarValues(activeSegment);
+      });
+    }
+    if (fmtRedo) {
+      fmtRedo.addEventListener('click', () => {
+        performRedo();
+        if (activeSegment) updateFormatToolbarValues(activeSegment);
+      });
+    }
+
+    document.addEventListener('pointerdown', (e) => {
+      if (fmtSpacingPopover && !fmtSpacingPopover.contains(e.target) && e.target !== fmtSpacingBtn && !fmtSpacingBtn.contains(e.target)) {
+        fmtSpacingPopover.style.display = 'none';
+      }
+
+      if (activeSegment && activeSegment.span) {
+        if (
+          activeSegment.span.contains(e.target) ||
+          (formatToolbar && formatToolbar.contains(e.target)) ||
+          (e.target.closest && e.target.closest('#text-format-toolbar'))
+        ) {
+          return;
+        }
+        deselectSegment();
+      }
+    });
+
+    if (canvasArea) {
+      canvasArea.addEventListener('scroll', () => {
+        if (activeSegment) updateFormatToolbarPosition();
+      }, { passive: true });
+    }
+    window.addEventListener('resize', () => {
+      if (activeSegment) updateFormatToolbarPosition();
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════
      SPAN PLACEMENT WITH EXACT ROTATION & TRANSFORM-ORIGIN
      ══════════════════════════════════════════════════════════ */
   function placeSegmentSpan(seg, canvas, textLayer, pageIdx, viewport, readingOrder) {
-    sampleSegmentColors(seg, canvas, viewport);
+    const pageData = pages[pageIdx];
+    sampleSegmentColors(seg, canvas, (pageData && pageData.renderViewport) || viewport);
 
     const span = document.createElement('span');
     span.className = 'text-seg';
@@ -1607,7 +2114,7 @@ function makeSortable(list, getItems, onReorder) {
     span.spellcheck = false;
     span.setAttribute('data-gramm', 'false');
     span.setAttribute('role', 'textbox');
-    span.setAttribute('dir', 'auto');
+    span.setAttribute('dir', seg.isRtl ? 'rtl' : 'auto');
     span.setAttribute('aria-label', `Editable text: ${seg.originalText}`);
 
     // Convert PDF baseline start to viewport coordinates
@@ -1620,79 +2127,100 @@ function makeSortable(list, getItems, onReorder) {
     const screenAngleDeg = screenAngle * (180 / Math.PI);
 
     const screenFontSize = seg.fontSize * screenScale;
-    const screenWidth = Math.max(seg.width * screenScale, 10);
-    const screenAscent = screenFontSize * 0.85;
-    const screenHeight = screenFontSize * 1.15;
+    const screenWidth = Math.max(seg.width * screenScale, 8);
+    const screenAscent = screenFontSize * 0.82;
+    const screenHeight = screenFontSize * 1.18;
 
     span.style.position = 'absolute';
     span.style.left = `${p0[0]}px`;
     span.style.top = `${p0[1] - screenAscent}px`;
     span.style.width = `${screenWidth}px`;
-    span.style.height = `${screenHeight}px`;
+    span.style.minHeight = `${screenHeight}px`;
     span.style.fontSize = `${screenFontSize}px`;
-    span.style.lineHeight = `${screenHeight}px`;
+    span.style.lineHeight = `${seg.lineSpacing || 1.15}`;
     span.style.fontFamily = seg.cssFamily;
     span.style.transformOrigin = `0px ${screenAscent}px`;
     span.style.transform = `rotate(${screenAngleDeg}deg)`;
 
-    if (seg.bold) span.style.fontWeight = 'bold';
-    if (seg.italic) span.style.fontStyle = 'italic';
+    span.style.fontWeight = seg.bold ? 'bold' : 'normal';
+    span.style.fontStyle = seg.italic ? 'italic' : 'normal';
+    if (seg.underline) span.style.textDecoration = 'underline';
+    if (seg.textAlign) span.style.textAlign = seg.textAlign;
+    if (seg.letterSpacing) span.style.letterSpacing = `${seg.letterSpacing}px`;
     if (seg.isRtl) {
       span.style.textAlign = 'right';
       span.setAttribute('dir', 'rtl');
     }
 
-    span.textContent = seg.currentText !== null ? seg.currentText : seg.originalText;
+    span.innerText = seg.currentText !== null ? seg.currentText : seg.originalText;
     seg.span = span;
 
     if (seg.currentText !== null && seg.currentText !== seg.originalText) {
-      span.style.color = seg.color;
-      span.style.background = seg.bgColor;
+      span.style.color = seg.color || '#000000';
+      span.style.background = seg.bgColor || '#ffffff';
       span.classList.add('edited');
+    } else {
+      span.style.color = 'transparent';
+      span.style.background = 'transparent';
     }
 
-    let preText = span.textContent;
+    let preText = span.innerText;
 
     span.addEventListener('focus', () => {
-      if (activeTool !== 'tool-edittext') { span.blur(); return; }
-      preText = span.textContent;
-      span.style.color = seg.color;
-      span.style.background = seg.bgColor;
-      span.style.outline = '1.5px dashed var(--accent-cyan)';
-      span.style.zIndex = '20';
+      if (activeTool !== 'tool-edittext' && activeTool !== 'tool-addtext') {
+        span.blur();
+        return;
+      }
+      preText = span.innerText;
+      selectSegment(seg, pages[pageIdx]);
+    });
+
+    span.addEventListener('click', (e) => {
+      if (activeTool !== 'tool-edittext' && activeTool !== 'tool-addtext') return;
+      e.stopPropagation();
+      selectSegment(seg, pages[pageIdx]);
+    });
+
+    span.addEventListener('input', () => {
+      seg.currentText = span.innerText;
+      span.classList.add('edited');
+      span.style.color = seg.color || '#000000';
+      span.style.background = seg.bgColor || '#ffffff';
+      updateFormatToolbarPosition();
     });
 
     span.addEventListener('blur', () => {
-      span.style.outline = 'none';
-      span.style.zIndex = '';
-      const newText = span.textContent;
-      if (newText !== seg.originalText || seg.currentText !== null) {
+      const newText = span.innerText;
+      if (newText !== seg.originalText || (seg.currentText !== null && seg.currentText !== seg.originalText)) {
         if (newText !== preText) {
           pushUndo({ type: 'textEdit', seg, oldText: preText, newText });
         }
         seg.currentText = newText;
-        span.style.color = seg.color;
-        span.style.background = seg.bgColor;
+        span.style.color = seg.color || '#000000';
+        span.style.background = seg.bgColor || '#ffffff';
         span.classList.add('edited');
       } else {
-        span.style.color = 'transparent';
-        span.style.background = 'transparent';
-        span.classList.remove('edited');
-        seg.currentText = null;
+        if (activeSegment !== seg) {
+          span.style.color = 'transparent';
+          span.style.background = 'transparent';
+          span.classList.remove('edited');
+          seg.currentText = null;
+        }
       }
     });
 
     span.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
-        e.preventDefault();
-        span.blur();
+        // Multi-line: allow creating new lines!
+        requestAnimationFrame(() => {
+          updateFormatToolbarPosition();
+        });
       } else if (e.key === 'Escape') {
         e.preventDefault();
-        span.textContent = preText;
-        span.blur();
+        span.innerText = preText;
+        deselectSegment();
       } else if (e.key === 'Tab') {
         e.preventDefault();
-        span.blur();
         if (readingOrder && readingOrder.length > 0) {
           const curIdx = readingOrder.indexOf(seg);
           const nextIdx = e.shiftKey
@@ -1703,6 +2231,25 @@ function makeSortable(list, getItems, onReorder) {
             nextSeg.span.focus();
           }
         }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        if (fmtBold) fmtBold.click();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') {
+        e.preventDefault();
+        if (fmtItalic) fmtItalic.click();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'u') {
+        e.preventDefault();
+        if (fmtUnderline) fmtUnderline.click();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          performRedo();
+        } else {
+          performUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        performRedo();
       }
     });
 
@@ -1710,6 +2257,10 @@ function makeSortable(list, getItems, onReorder) {
       e.preventDefault();
       const text = (e.clipboardData || window.clipboardData).getData('text/plain');
       document.execCommand('insertText', false, text);
+      requestAnimationFrame(() => {
+        updateSelectionFramePos(seg, currentSelectionFrame);
+        updateFormatToolbarPosition();
+      });
     });
 
     textLayer.appendChild(span);
@@ -1956,6 +2507,8 @@ function makeSortable(list, getItems, onReorder) {
   function updateUndoRedoBtns() {
     if (undoBtn) undoBtn.disabled = undoStack.length === 0;
     if (redoBtn) redoBtn.disabled = redoStack.length === 0;
+    if (fmtUndo) fmtUndo.disabled = undoStack.length === 0;
+    if (fmtRedo) fmtRedo.disabled = redoStack.length === 0;
   }
 
   function performUndo() {
@@ -1986,7 +2539,7 @@ function makeSortable(list, getItems, onReorder) {
       const textToApply = isUndo ? action.oldText : action.newText;
       seg.currentText = textToApply !== seg.originalText ? textToApply : null;
       if (seg.span) {
-        seg.span.textContent = textToApply;
+        seg.span.innerText = textToApply;
         if (seg.currentText !== null) {
           seg.span.style.color = seg.color;
           seg.span.style.background = seg.bgColor;
@@ -1996,6 +2549,74 @@ function makeSortable(list, getItems, onReorder) {
           seg.span.style.background = 'transparent';
           seg.span.classList.remove('edited');
         }
+      }
+      if (activeSegment === seg) {
+        updateSelectionFramePos(seg, currentSelectionFrame);
+        updateFormatToolbarPosition();
+      }
+    } else if (action.type === 'format') {
+      const seg = action.seg;
+      const val = isUndo ? action.oldVal : action.newVal;
+      seg[action.prop] = val;
+      if (action.prop === 'fontFamily') {
+        seg.cssFamily = getCssFamily(val);
+        seg.span.style.fontFamily = seg.cssFamily;
+      } else if (action.prop === 'fontSize') {
+        const vp = pages[seg.pageIdx] ? pages[seg.pageIdx].viewport : null;
+        const scale = vp ? vp.scale : 1;
+        seg.span.style.fontSize = `${val * scale}px`;
+      } else if (action.prop === 'bold') {
+        seg.span.style.fontWeight = val ? 'bold' : 'normal';
+      } else if (action.prop === 'italic') {
+        seg.span.style.fontStyle = val ? 'italic' : 'normal';
+      } else if (action.prop === 'underline') {
+        seg.span.style.textDecoration = val ? 'underline' : 'none';
+      } else if (action.prop === 'color') {
+        seg.span.style.color = val;
+      } else if (action.prop === 'textAlign') {
+        seg.span.style.textAlign = val;
+      }
+      if (activeSegment === seg) {
+        updateFormatToolbarValues(seg);
+        updateSelectionFramePos(seg, currentSelectionFrame);
+        updateFormatToolbarPosition();
+      }
+    } else if (action.type === 'reposition') {
+      const seg = action.seg;
+      const pos = isUndo ? action.oldPos : action.newPos;
+      seg.x = pos.x;
+      seg.baselineY = pos.y;
+      seg.span.style.left = `${pos.left}px`;
+      seg.span.style.top = `${pos.top}px`;
+      if (activeSegment === seg) {
+        updateSelectionFramePos(seg, currentSelectionFrame);
+        updateFormatToolbarPosition();
+      }
+    } else if (action.type === 'resizeWidth') {
+      const seg = action.seg;
+      const w = isUndo ? action.oldWidth : action.newWidth;
+      seg.width = w;
+      const vp = pages[seg.pageIdx] ? pages[seg.pageIdx].viewport : null;
+      const scale = vp ? vp.scale : 1;
+      seg.span.style.width = `${w * scale}px`;
+      if (activeSegment === seg) {
+        updateSelectionFramePos(seg, currentSelectionFrame);
+        updateFormatToolbarPosition();
+      }
+    } else if (action.type === 'deleteText') {
+      const seg = action.seg;
+      const text = isUndo ? action.oldText : '';
+      seg.currentText = text;
+      seg.span.innerText = text;
+      if (text) {
+        seg.span.classList.remove('edited');
+      } else {
+        seg.span.classList.add('edited');
+        seg.span.style.background = seg.bgColor;
+      }
+      if (activeSegment === seg) {
+        updateSelectionFramePos(seg, currentSelectionFrame);
+        updateFormatToolbarPosition();
       }
     }
   }
@@ -2167,42 +2788,54 @@ function makeSortable(list, getItems, onReorder) {
 
   function handleAddText(pt, idx) {
     const pg = pages[idx];
-    if (!pg) return;
+    if (!pg || !pg.viewport) return;
 
-    const span = document.createElement('span');
-    span.className = 'text-seg';
-    span.contentEditable = 'true';
-    span.style.left = `${pt.x}px`;
-    span.style.top = `${pt.y - textSize}px`;
-    span.style.fontSize = `${textSize}px`;
-    span.style.color = drawColour;
-    span.style.border = `1.5px dashed ${drawColour}`;
-    span.style.zIndex = '20';
+    const [pdfX, pdfY] = pg.viewport.convertToPdfPoint(pt.x, pt.y);
+    const newSeg = {
+      originalText: '',
+      currentText: 'New text',
+      x: pdfX,
+      baselineY: pdfY,
+      origX: pdfX,
+      origBaselineY: pdfY,
+      fontSize: textSize || 14,
+      origFontSize: textSize || 14,
+      width: 120,
+      origWidth: 120,
+      angle: 0,
+      angleDeg: 0,
+      fontName: 'Helvetica',
+      rawFontName: 'Helvetica',
+      fontFamily: 'Helvetica',
+      cssFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+      bold: false,
+      italic: false,
+      underline: false,
+      isRtl: false,
+      dir: 'ltr',
+      color: drawColour || '#000000',
+      bgColor: '#ffffff',
+      textAlign: 'left',
+      lineSpacing: 1.25,
+      letterSpacing: 0,
+      span: null,
+      pageIdx: idx,
+      isNew: true,
+    };
 
-    span.addEventListener('blur', () => {
-      const text = span.textContent.trim();
-      span.remove();
-      if (!text) return;
-      const edit = {
-        type: 'addtext',
-        str: text,
-        x: pt.x,
-        y: pt.y,
-        fontSize: textSize,
-        color: drawColour,
-        fontFamily: 'sans-serif',
-        bold: false,
-        italic: false,
-        pageIdx: idx,
-      };
-      const editIdx = pg.edits.length;
-      pg.edits.push(edit);
-      pushUndo({ type: 'overlayEdit', pageIdx: idx, edit, editIdx });
-      redrawOverlay(idx);
-    });
+    pg.segments.push(newSeg);
+    placeSegmentSpan(newSeg, pg.canvas, pg.textLayer, idx, pg.viewport, pg.segments);
+    selectSegment(newSeg, pg);
 
-    pg.textLayer.appendChild(span);
-    requestAnimationFrame(() => span.focus());
+    if (newSeg.span) {
+      newSeg.span.focus();
+      const range = document.createRange();
+      range.selectNodeContents(newSeg.span);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    toast('Added new text element. Type your text or drag to position.', 'info');
   }
 
   function placeStamp(pt, idx) {
@@ -2313,34 +2946,80 @@ function makeSortable(list, getItems, onReorder) {
           // Draw edited segments
           for (const seg of pg.segments) {
             if (seg.currentText !== null) {
-              const p0 = pg.viewport.convertToViewportPoint(seg.x, seg.baselineY);
-              const p1 = pg.viewport.convertToViewportPoint(seg.x + Math.cos(seg.angle), seg.baselineY + Math.sin(seg.angle));
-              const dx = p1[0] - p0[0];
-              const dy = p1[1] - p0[1];
-              const screenScale = Math.hypot(dx, dy);
-              const screenAngle = Math.atan2(dy, dx);
-              const screenFontSize = seg.fontSize * screenScale;
-              const screenAscent = screenFontSize * 0.85;
-              const screenDescent = screenFontSize * 0.28;
-              const totalH = screenAscent + screenDescent;
-              const totalW = seg.width * screenScale + 6;
+              const origX = seg.origX !== undefined ? seg.origX : seg.x;
+              const origBaselineY = seg.origBaselineY !== undefined ? seg.origBaselineY : seg.baselineY;
+              const origFontSize = seg.origFontSize !== undefined ? seg.origFontSize : seg.fontSize;
+              const origWidth = seg.origWidth !== undefined ? seg.origWidth : seg.width;
 
-              tCtx.save();
-              tCtx.translate(p0[0], p0[1]);
-              tCtx.rotate(screenAngle);
+              const vpForCanvas = pg.renderViewport || pg.viewport;
 
-              // Erase original text with sampled background
-              tCtx.fillStyle = seg.bgColor || '#ffffff';
-              tCtx.fillRect(-2, -screenAscent - 2, totalW, totalH + 4);
+              // 1. Erase original text in flatten canvas
+              if (!seg.isNew) {
+                const origP0 = vpForCanvas.convertToViewportPoint(origX, origBaselineY);
+                const origP1 = vpForCanvas.convertToViewportPoint(origX + Math.cos(seg.angle), origBaselineY + Math.sin(seg.angle));
+                const odx = origP1[0] - origP0[0];
+                const ody = origP1[1] - origP0[1];
+                const oScreenScale = Math.hypot(odx, ody);
+                const oScreenAngle = Math.atan2(ody, odx);
+                const oScreenFontSize = origFontSize * oScreenScale;
+                const oScreenAscent = oScreenFontSize * 0.82;
+                const oScreenDescent = oScreenFontSize * 0.22;
+                const oTotalH = oScreenAscent + oScreenDescent;
+                const oTotalW = origWidth * oScreenScale + 2;
 
-              // Draw new text if not empty
-              if (seg.currentText.length > 0) {
+                tCtx.save();
+                tCtx.translate(origP0[0], origP0[1]);
+                tCtx.rotate(oScreenAngle);
+                tCtx.fillStyle = seg.bgColor || '#ffffff';
+                tCtx.fillRect(-1, -oScreenAscent - 1, oTotalW, oTotalH + 2);
+                tCtx.restore();
+              }
+
+              // 2. Draw new text if not empty
+              const textToDraw = seg.currentText || '';
+              if (textToDraw.length > 0) {
+                const p0 = vpForCanvas.convertToViewportPoint(seg.x, seg.baselineY);
+                const p1 = vpForCanvas.convertToViewportPoint(seg.x + Math.cos(seg.angle), seg.baselineY + Math.sin(seg.angle));
+                const dx = p1[0] - p0[0];
+                const dy = p1[1] - p0[1];
+                const screenScale = Math.hypot(dx, dy);
+                const screenAngle = Math.atan2(dy, dx);
+                const screenFontSize = seg.fontSize * screenScale;
+
+                tCtx.save();
+                tCtx.translate(p0[0], p0[1]);
+                tCtx.rotate(screenAngle);
+
                 tCtx.fillStyle = seg.color || '#000000';
                 tCtx.font = `${seg.italic ? 'italic ' : ''}${seg.bold ? 'bold ' : ''}${screenFontSize}px ${seg.cssFamily}`;
                 tCtx.textBaseline = 'alphabetic';
-                tCtx.fillText(seg.currentText, 0, 0);
+
+                const lines = textToDraw.split(/\r?\n/);
+                const lineSpacing = seg.lineSpacing || 1.25;
+
+                for (let li = 0; li < lines.length; li++) {
+                  const line = lines[li];
+                  const lineDy = li * screenFontSize * lineSpacing;
+                  const metrics = tCtx.measureText(line);
+                  const lineWidth = metrics.width;
+                  const boxWidth = seg.width * screenScale;
+
+                  let u_off = 0;
+                  if (seg.textAlign === 'center') {
+                    u_off = Math.max(0, (boxWidth - lineWidth) / 2);
+                  } else if (seg.textAlign === 'right') {
+                    u_off = Math.max(0, boxWidth - lineWidth);
+                  }
+
+                  tCtx.fillText(line, u_off, lineDy);
+
+                  if (seg.underline) {
+                    tCtx.fillRect(u_off, lineDy + screenFontSize * 0.1, lineWidth, Math.max(1, screenFontSize * 0.07));
+                  }
+                }
+
+                tCtx.restore();
               }
-              tCtx.restore();
             }
           }
 
@@ -2422,44 +3101,52 @@ function makeSortable(list, getItems, onReorder) {
           const outPage = outPdf.getPage(outPdf.getPageCount() - 1);
 
           for (const seg of pg.segments) {
-            if (seg.currentText !== null && seg.currentText !== seg.originalText) {
+            if (seg.currentText !== null && (seg.currentText !== seg.originalText || seg.isNew)) {
               const bg = seg.bgColor ? hexToRgb(seg.bgColor) : { r: 255, g: 255, b: 255 };
               const col = hexToRgb(seg.color || '#000000');
 
-              // Draw covering rectangle in PDF user space
+              // Draw covering rectangle in PDF user space (erases original text)
               const cosA = Math.cos(seg.angle);
               const sinA = Math.sin(seg.angle);
-              const charW = Math.max(seg.fontSize * 0.7, seg.width / (seg.originalText.length || 1));
-              const estNewWidth = seg.currentText.length * charW;
-              const effWidth = Math.max(seg.width, estNewWidth);
+              const origX = seg.origX !== undefined ? seg.origX : seg.x;
+              const origBaselineY = seg.origBaselineY !== undefined ? seg.origBaselineY : seg.baselineY;
+              const origFontSize = seg.origFontSize !== undefined ? seg.origFontSize : seg.fontSize;
+              const origWidth = seg.origWidth !== undefined ? seg.origWidth : seg.width;
 
-              const padU = 2.0;
-              const padV = 2.0;
+              const charW = Math.max(origFontSize * 0.7, origWidth / ((seg.originalText && seg.originalText.length) || 1));
+              const estNewWidth = (seg.currentText || '').length * charW;
+              const effWidth = Math.max(origWidth, estNewWidth);
+
+              const padU = 1.0;
+              const padV = 1.0;
               const u0 = -padU;
-              const v0 = -(seg.fontSize * 0.28) - padV;
-              const x_rect = seg.x + u0 * cosA - v0 * sinA;
-              const y_rect = seg.baselineY + u0 * sinA + v0 * cosA;
+              const v0 = -(origFontSize * 0.22) - padV;
+              const x_rect = origX + u0 * cosA - v0 * sinA;
+              const y_rect = origBaselineY + u0 * sinA + v0 * cosA;
               const w_rect = effWidth + 2 * padU;
-              const h_rect = seg.fontSize * 1.20 + 2 * padV;
+              const h_rect = origFontSize * 1.05 + 2 * padV;
 
-              outPage.drawRectangle({
-                x: x_rect,
-                y: y_rect,
-                width: w_rect,
-                height: h_rect,
-                rotate: degrees(seg.angleDeg),
-                color: rgb(bg.r / 255, bg.g / 255, bg.b / 255),
-              });
+              if (!seg.isNew) {
+                outPage.drawRectangle({
+                  x: x_rect,
+                  y: y_rect,
+                  width: w_rect,
+                  height: h_rect,
+                  rotate: degrees(seg.angleDeg),
+                  color: rgb(bg.r / 255, bg.g / 255, bg.b / 255),
+                });
+              }
 
-              if (seg.currentText.length > 0) {
+              const textToDraw = seg.currentText || '';
+              if (textToDraw.length > 0) {
                 // Font selection
                 let chosenFont = await getStdFont(seg.fontFamily, seg.bold, seg.italic);
-                if (!canFontEncode(chosenFont, seg.currentText)) {
+                if (!canFontEncode(chosenFont, textToDraw)) {
                   // Fall back to Noto font
-                  const notoInfo = pickNotoFontForText(seg.currentText, seg.fontFamily === 'Times');
+                  const notoInfo = pickNotoFontForText(textToDraw, seg.fontFamily === 'Times');
                   try {
                     const notoFont = await getNotoFont(notoInfo.fileName);
-                    if (canFontEncode(notoFont, seg.currentText)) {
+                    if (canFontEncode(notoFont, textToDraw)) {
                       chosenFont = notoFont;
                     }
                   } catch (e) {
@@ -2468,17 +3155,57 @@ function makeSortable(list, getItems, onReorder) {
                 }
 
                 // If still cannot encode, fallback toast
-                if (!canFontEncode(chosenFont, seg.currentText)) {
-                  toast(`Characters in "${seg.currentText.slice(0, 15)}" require flatten mode. Saving with flatten fallback.`, 'warning');
+                if (!canFontEncode(chosenFont, textToDraw)) {
+                  toast(`Characters in "${textToDraw.slice(0, 15)}" require flatten mode. Saving with flatten fallback.`, 'warning');
                 } else {
-                  outPage.drawText(seg.currentText, {
-                    x: seg.x,
-                    y: seg.baselineY,
-                    size: seg.fontSize,
-                    font: chosenFont,
-                    rotate: degrees(seg.angleDeg),
-                    color: rgb(col.r / 255, col.g / 255, col.b / 255),
-                  });
+                  const lines = textToDraw.split(/\r?\n/);
+                  const lineSpacing = seg.lineSpacing || 1.25;
+
+                  for (let li = 0; li < lines.length; li++) {
+                    const line = lines[li];
+                    const lineDy = li * seg.fontSize * lineSpacing;
+                    const lineBaseX = seg.x + lineDy * sinA;
+                    const lineBaseY = seg.baselineY - lineDy * cosA;
+
+                    let lineWidth = 0;
+                    try {
+                      lineWidth = chosenFont.widthOfTextAtSize(line, seg.fontSize);
+                    } catch (e) {
+                      lineWidth = line.length * (seg.fontSize * 0.5);
+                    }
+
+                    let u_off = 0;
+                    if (seg.textAlign === 'center') {
+                      u_off = Math.max(0, (seg.width - lineWidth) / 2);
+                    } else if (seg.textAlign === 'right') {
+                      u_off = Math.max(0, seg.width - lineWidth);
+                    }
+
+                    const finalLineX = lineBaseX + u_off * cosA;
+                    const finalLineY = lineBaseY + u_off * sinA;
+
+                    outPage.drawText(line, {
+                      x: finalLineX,
+                      y: finalLineY,
+                      size: seg.fontSize,
+                      font: chosenFont,
+                      rotate: degrees(seg.angleDeg),
+                      color: rgb(col.r / 255, col.g / 255, col.b / 255),
+                    });
+
+                    if (seg.underline) {
+                      const uX = finalLineX - (seg.fontSize * 0.12) * sinA;
+                      const uY = finalLineY - (seg.fontSize * 0.12) * cosA;
+                      outPage.drawRectangle({
+                        x: uX,
+                        y: uY,
+                        width: lineWidth,
+                        height: Math.max(1, seg.fontSize * 0.07),
+                        rotate: degrees(seg.angleDeg),
+                        color: rgb(col.r / 255, col.g / 255, col.b / 255),
+                      });
+                    }
+                  }
                 }
               }
             }
@@ -2530,6 +3257,8 @@ function makeSortable(list, getItems, onReorder) {
       console.error(err);
     }
   });
+
+  setupFormatToolbarListeners();
 
 })();
 

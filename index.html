@@ -243,6 +243,113 @@
       </div>
     </div>
 
+    <!-- Canva-style Floating Text Formatting Toolbar -->
+    <div id="text-format-toolbar" class="format-toolbar" role="toolbar" aria-label="Text formatting" style="display:none;">
+      <!-- Drag handle for repositioning -->
+      <button class="fmt-btn fmt-drag" id="fmt-drag" title="Drag to reposition text" aria-label="Drag to reposition">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>
+      </button>
+
+      <div class="fmt-sep"></div>
+
+      <!-- Font Family -->
+      <select id="fmt-font-family" class="fmt-select" aria-label="Font family" title="Font family">
+        <option value="Helvetica">Helvetica / Arial</option>
+        <option value="Times">Times New Roman</option>
+        <option value="Courier">Courier New</option>
+        <option value="Georgia">Georgia</option>
+        <option value="Space Grotesk">Space Grotesk</option>
+        <option value="Noto Sans">Noto Sans</option>
+        <option value="Noto Serif">Noto Serif</option>
+        <option value="Noto Sans Devanagari">Noto Sans Devanagari (Hindi)</option>
+        <option value="Noto Sans Arabic">Noto Sans Arabic</option>
+      </select>
+
+      <div class="fmt-sep"></div>
+
+      <!-- Font Size with - and + -->
+      <div class="fmt-size-group">
+        <button class="fmt-btn fmt-size-step" id="fmt-size-dec" title="Decrease font size" aria-label="Decrease font size">−</button>
+        <input type="number" id="fmt-font-size" class="fmt-num-input" value="14" min="4" max="144" title="Font size in pt" aria-label="Font size">
+        <button class="fmt-btn fmt-size-step" id="fmt-size-inc" title="Increase font size" aria-label="Increase font size">+</button>
+      </div>
+
+      <div class="fmt-sep"></div>
+
+      <!-- Bold, Italic, Underline -->
+      <button class="fmt-btn" id="fmt-bold" title="Bold (Ctrl+B)" aria-label="Bold">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/></svg>
+      </button>
+      <button class="fmt-btn" id="fmt-italic" title="Italic (Ctrl+I)" aria-label="Italic">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg>
+      </button>
+      <button class="fmt-btn" id="fmt-underline" title="Underline (Ctrl+U)" aria-label="Underline">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg>
+      </button>
+
+      <!-- Text Color Button & Picker -->
+      <div class="fmt-color-wrap">
+        <button class="fmt-btn" id="fmt-color-btn" title="Text Color" aria-label="Text Color">
+          <span class="fmt-color-icon">A</span>
+          <span class="fmt-color-bar" id="fmt-color-bar" style="background:#22D3EE"></span>
+        </button>
+        <input type="color" id="fmt-color-picker" value="#22D3EE" aria-label="Choose text color">
+      </div>
+
+      <div class="fmt-sep"></div>
+
+      <!-- Text Alignment -->
+      <div class="fmt-btn-group" role="group" aria-label="Text alignment">
+        <button class="fmt-btn active" id="fmt-align-left" title="Align Left" aria-label="Align Left">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
+        </button>
+        <button class="fmt-btn" id="fmt-align-center" title="Align Center" aria-label="Align Center">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="10" x2="6" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="18" y1="18" x2="6" y2="18"/></svg>
+        </button>
+        <button class="fmt-btn" id="fmt-align-right" title="Align Right" aria-label="Align Right">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="21" y1="10" x2="7" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="7" y2="18"/></svg>
+        </button>
+      </div>
+
+      <div class="fmt-sep"></div>
+
+      <!-- Spacing Popover Toggle -->
+      <div class="fmt-dropdown-wrap">
+        <button class="fmt-btn" id="fmt-spacing-btn" title="Line & Letter Spacing" aria-label="Spacing">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        </button>
+        <div class="fmt-popover" id="fmt-spacing-popover" style="display:none;">
+          <div class="fmt-popover-row">
+            <span class="fmt-popover-label">Line Spacing</span>
+            <input type="range" id="fmt-line-spacing" min="0.8" max="2.5" step="0.05" value="1.2">
+            <span class="fmt-popover-val" id="fmt-line-spacing-val">1.2</span>
+          </div>
+          <div class="fmt-popover-row">
+            <span class="fmt-popover-label">Letter Spacing</span>
+            <input type="range" id="fmt-letter-spacing" min="-2" max="10" step="0.5" value="0">
+            <span class="fmt-popover-val" id="fmt-letter-spacing-val">0px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="fmt-sep"></div>
+
+      <!-- Undo / Redo in floating bar -->
+      <button class="fmt-btn" id="fmt-undo" title="Undo (Ctrl+Z)" aria-label="Undo">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+      </button>
+      <button class="fmt-btn" id="fmt-redo" title="Redo (Ctrl+Y)" aria-label="Redo">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      </button>
+
+      <div class="fmt-sep"></div>
+
+      <!-- Delete Text Element -->
+      <button class="fmt-btn fmt-danger" id="fmt-delete" title="Delete text element" aria-label="Delete text">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      </button>
+    </div>
+
     <!-- Floating toolbar -->
     <div id="toolbar" role="toolbar" aria-label="PDF editing tools">
       <div id="toolbar-indicator" aria-hidden="true"></div>

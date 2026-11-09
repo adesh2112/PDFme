@@ -1,0 +1,14 @@
+.chrome-profile-print/
+.chrome-profile-verify/
+test-files/
+test.pdf
+lh-report-*.json
+node_modules/
+build-test-corpus.js
+generate-test-pdfs.js
+make-test-pdf.js
+run-all-pdf-tests.js
+run-browser-tests.js
+run-lighthouse.js
+run-lighthouse-after.js
+download-vendor.js
