@@ -49,16 +49,53 @@ function ensurePdfJs() {
 
 let pdfLibPromise = null;
 function ensurePdfLib() {
-  if (window.PDFLib) return Promise.resolve(window.PDFLib);
+  const existing = (typeof window !== 'undefined' && (window.PDFLib || window.pdfLib)) || (typeof PDFLib !== 'undefined' ? PDFLib : null);
+  if (existing) {
+    if (!existing.pdfDocument) existing.pdfDocument = existing.PDFDocument;
+    if (typeof window !== 'undefined') {
+      if (!window.PDFLib) window.PDFLib = existing;
+      if (!window.pdfLib) window.pdfLib = existing;
+    }
+    return Promise.resolve(existing);
+  }
   if (pdfLibPromise) return pdfLibPromise;
   pdfLibPromise = new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = '/lib/pdf-lib.min.js';
+    s.src = 'lib/pdf-lib.min.js';
     s.defer = true;
-    s.onload = () => resolve(window.PDFLib);
-    s.onerror = (err) => {
+    s.onload = () => {
+      const lib = (typeof window !== 'undefined' && (window.PDFLib || window.pdfLib)) || (typeof PDFLib !== 'undefined' ? PDFLib : null);
+      if (lib) {
+        if (!lib.pdfDocument) lib.pdfDocument = lib.PDFDocument;
+        if (typeof window !== 'undefined') {
+          window.PDFLib = lib;
+          window.pdfLib = lib;
+        }
+      }
+      resolve(lib);
+    };
+    s.onerror = () => {
       pdfLibPromise = null;
-      reject(err);
+      // Fallback try root path '/lib/pdf-lib.min.js'
+      const fallback = document.createElement('script');
+      fallback.src = '/lib/pdf-lib.min.js';
+      fallback.defer = true;
+      fallback.onload = () => {
+        const lib = (typeof window !== 'undefined' && (window.PDFLib || window.pdfLib)) || (typeof PDFLib !== 'undefined' ? PDFLib : null);
+        if (lib) {
+          if (!lib.pdfDocument) lib.pdfDocument = lib.PDFDocument;
+          if (typeof window !== 'undefined') {
+            window.PDFLib = lib;
+            window.pdfLib = lib;
+          }
+        }
+        resolve(lib);
+      };
+      fallback.onerror = (err2) => {
+        pdfLibPromise = null;
+        reject(new Error('Failed to load PDF library (lib/pdf-lib.min.js).'));
+      };
+      document.head.appendChild(fallback);
     };
     document.head.appendChild(s);
   });
@@ -618,6 +655,15 @@ function makeSortable(list, getItems, onReorder) {
 
   let items = [];
 
+  const SUPPORTED_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'svg', 'tiff', 'tif', 'jfif'];
+
+  function isSupportedImage(file) {
+    if (!file) return false;
+    if (file.type && file.type.startsWith('image/')) return true;
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    return SUPPORTED_EXTS.includes(ext);
+  }
+
   function render() {
     list.innerHTML = '';
     btn.disabled = items.length === 0;
@@ -669,21 +715,35 @@ function makeSortable(list, getItems, onReorder) {
   }
 
   function remove(i) {
-    URL.revokeObjectURL(items[i].url);
+    if (items[i] && items[i].url) {
+      URL.revokeObjectURL(items[i].url);
+    }
     items.splice(i, 1);
     render();
   }
 
   function addFiles(files) {
+    if (!files || files.length === 0) {
+      toast('No images selected. Please choose at least one image file.', 'warning');
+      return;
+    }
+    let addedCount = 0;
     for (const f of files) {
-      if (!f.type.startsWith('image/')) {
-        toast(`"${f.name}" is not an image.`, 'error');
+      if (f.size === 0) {
+        toast(`"${f.name}" is empty (0 bytes).`, 'error');
+        continue;
+      }
+      if (!isSupportedImage(f)) {
+        toast(`"${f.name}" is not a supported image format. Please select JPG, PNG, WebP, or other image files.`, 'error');
         continue;
       }
       const url = URL.createObjectURL(f);
       items.push({ file: f, url });
+      addedCount++;
     }
-    render();
+    if (addedCount > 0) {
+      render();
+    }
   }
 
   input.addEventListener('change', () => { addFiles([...input.files]); input.value = ''; });
@@ -692,11 +752,13 @@ function makeSortable(list, getItems, onReorder) {
   drop.addEventListener('drop', (e) => {
     e.preventDefault();
     drop.classList.remove('drag-over');
-    addFiles([...e.dataTransfer.files]);
+    if (e.dataTransfer && e.dataTransfer.files) {
+      addFiles([...e.dataTransfer.files]);
+    }
   });
   drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') input.click(); });
   clearBtn.addEventListener('click', () => {
-    items.forEach(it => URL.revokeObjectURL(it.url));
+    items.forEach(it => { if (it.url) URL.revokeObjectURL(it.url); });
     items = [];
     render();
   });
@@ -711,74 +773,214 @@ function makeSortable(list, getItems, onReorder) {
     letter: [612, 792],
   };
 
-  function imageToJpeg(file) {
+  function loadImageDimensionsAndValidity(file) {
     return new Promise((resolve, reject) => {
+      if (!file || file.size === 0) {
+        return reject(new Error(`File "${file ? file.name : 'Unknown'}" is empty (0 bytes).`));
+      }
+      const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
-        const cv = document.createElement('canvas');
-        cv.width = img.naturalWidth;
-        cv.height = img.naturalHeight;
-        cv.getContext('2d').drawImage(img, 0, 0);
-        resolve({ dataUrl: cv.toDataURL('image/jpeg', 0.92), w: img.naturalWidth, h: img.naturalHeight });
-        URL.revokeObjectURL(img.src);
+        const w = img.naturalWidth;
+        const h = img.naturalHeight;
+        URL.revokeObjectURL(url);
+        if (!w || !h) {
+          return reject(new Error(`Image "${file.name}" has invalid dimensions (${w}x${h}).`));
+        }
+        resolve({ w, h });
       };
-      img.onerror = reject;
-      img.src = URL.createObjectURL(file);
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error(`Image "${file.name}" is corrupted or could not be decoded.`));
+      };
+      img.src = url;
+    });
+  }
+
+  async function embedImageSafely(pdf, file, origW, origH) {
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    const mime = (file.type || '').toLowerCase();
+    const isJpeg = mime === 'image/jpeg' || ext === 'jpg' || ext === 'jpeg' || ext === 'jfif';
+    const isPng = mime === 'image/png' || ext === 'png';
+
+    // Direct embed for JPEG
+    if (isJpeg) {
+      try {
+        const buf = await file.arrayBuffer();
+        const embedded = await pdf.embedJpg(new Uint8Array(buf));
+        return { embedded, w: embedded.width || origW, h: embedded.height || origH };
+      } catch (err) {
+        console.warn(`Direct embedJpg failed for "${file.name}", using canvas fallback:`, err);
+      }
+    }
+
+    // Direct embed for PNG
+    if (isPng) {
+      try {
+        const buf = await file.arrayBuffer();
+        const embedded = await pdf.embedPng(new Uint8Array(buf));
+        return { embedded, w: embedded.width || origW, h: embedded.height || origH };
+      } catch (err) {
+        console.warn(`Direct embedPng failed for "${file.name}", using canvas fallback:`, err);
+      }
+    }
+
+    // Fallback via high-quality canvas (for WebP, GIF, BMP, SVG, or exotic JPEG/PNG)
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = async () => {
+        try {
+          let w = img.naturalWidth || origW;
+          let h = img.naturalHeight || origH;
+          // Very large image guard: avoid exceeding mobile/browser canvas memory limits
+          const MAX_DIM = 4096;
+          if (w > MAX_DIM || h > MAX_DIM) {
+            const s = Math.min(MAX_DIM / w, MAX_DIM / h);
+            w = Math.max(1, Math.round(w * s));
+            h = Math.max(1, Math.round(h * s));
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            URL.revokeObjectURL(url);
+            return reject(new Error('Canvas context could not be created'));
+          }
+          ctx.drawImage(img, 0, 0, w, h);
+          URL.revokeObjectURL(url);
+
+          const prefersPng = isPng || mime === 'image/webp' || ext === 'webp' || mime === 'image/svg+xml' || ext === 'svg';
+          let embedded;
+          if (prefersPng) {
+            const dataUrl = canvas.toDataURL('image/png');
+            const b64 = dataUrl.split(',')[1];
+            const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+            embedded = await pdf.embedPng(bytes);
+          } else {
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+            const b64 = dataUrl.split(',')[1];
+            const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+            embedded = await pdf.embedJpg(bytes);
+          }
+          resolve({ embedded, w, h });
+        } catch (e) {
+          URL.revokeObjectURL(url);
+          reject(e);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error(`Failed to decode image "${file.name}".`));
+      };
+      img.src = url;
     });
   }
 
   btn.addEventListener('click', async () => {
-    if (items.length === 0) return;
+    if (items.length === 0) {
+      toast('Please add at least one image before creating a PDF.', 'warning');
+      return;
+    }
     btn.disabled = true;
     clearBtn.disabled = true;
     progress.classList.add('visible');
+
     const pageSize = document.querySelector('input[name="page-size"]:checked')?.value || 'a4';
 
     try {
-      await ensurePdfLib();
-      const { PDFDocument } = PDFLib;
-      const pdf = await PDFDocument.create();
-      const MARGIN = 36;
+      // 1. Ensure PDF-Lib is ready
+      const pdfLib = await ensurePdfLib();
+      const PDFDocument = (pdfLib && (pdfLib.PDFDocument || pdfLib.pdfDocument)) ||
+                          (typeof PDFLib !== 'undefined' && (PDFLib.PDFDocument || PDFLib.pdfDocument)) ||
+                          (typeof window !== 'undefined' && window.PDFLib && (window.PDFLib.PDFDocument || window.PDFLib.pdfDocument));
 
+      if (!PDFDocument || typeof PDFDocument.create !== 'function') {
+        throw new Error('PDF-Lib library could not be loaded. PDFDocument.create is unavailable.');
+      }
+
+      const pdf = await PDFDocument.create();
+
+      // 2. Validate all images first
       for (const item of items) {
-        const { dataUrl, w: imgW, h: imgH } = await imageToJpeg(item.file);
-        const b64 = dataUrl.split(',')[1];
-        const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-        const pdfImg = await pdf.embedJpg(bytes);
+        if (!item.file || item.file.size === 0) {
+          throw new Error(`File "${item.file ? item.file.name : 'Unknown'}" is empty.`);
+        }
+      }
+
+      // 3. Process each image in order
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const { w: imgW, h: imgH } = await loadImageDimensionsAndValidity(item.file);
+        const { embedded, w: drawnW, h: drawnH } = await embedImageSafely(pdf, item.file, imgW, imgH);
+
+        const realW = drawnW || imgW;
+        const realH = drawnH || imgH;
 
         let pgW, pgH;
+        let dx, dy, dW, dH;
+
         if (pageSize === 'fit') {
-          pgW = imgW * 0.75;
-          pgH = imgH * 0.75;
+          // Fit to Photo: page matches photo dimensions at 72 DPI (0.75 ratio), 0 margin, no stretching
+          pgW = realW * 0.75;
+          pgH = realH * 0.75;
+          dW = pgW;
+          dH = pgH;
+          dx = 0;
+          dy = 0;
         } else {
-          [pgW, pgH] = PAGE_SIZES[pageSize];
-          if (imgW > imgH && pgW < pgH) [pgW, pgH] = [pgH, pgW];
+          [pgW, pgH] = PAGE_SIZES[pageSize] || PAGE_SIZES.a4;
+          // Auto orientation: match photo orientation (portrait vs landscape)
+          if (realW > realH && pgW < pgH) {
+            [pgW, pgH] = [pgH, pgW];
+          } else if (realW < realH && pgW > pgH) {
+            [pgW, pgH] = [pgH, pgW];
+          }
+
+          const MARGIN = 36; // 0.5 inch (36 pt)
+          const avW = pgW - MARGIN * 2;
+          const avH = pgH - MARGIN * 2;
+          const scale = Math.min(avW / realW, avH / realH);
+          dW = realW * scale;
+          dH = realH * scale;
+          dx = MARGIN + (avW - dW) / 2;
+          dy = MARGIN + (avH - dH) / 2;
         }
 
         const page = pdf.addPage([pgW, pgH]);
-        const avW = pgW - MARGIN * 2;
-        const avH = pgH - MARGIN * 2;
-        const scale = Math.min(avW / imgW, avH / imgH);
-        const dW = imgW * scale;
-        const dH = imgH * scale;
-        const dx = MARGIN + (avW - dW) / 2;
-        const dy = MARGIN + (avH - dH) / 2;
-
-        page.drawImage(pdfImg, { x: dx, y: dy, width: dW, height: dH });
+        page.drawImage(embedded, { x: dx, y: dy, width: dW, height: dH });
       }
 
+      // 4. Serialize to PDF bytes
       const pdfBytes = await pdf.save({ useObjectStreams: true });
-      progress.classList.remove('visible');
-      btn.disabled = false;
-      clearBtn.disabled = false;
-      downloadBytes(pdfBytes, 'photos.pdf');
-      toast('PDF created and downloaded!', 'success');
+      if (!pdfBytes || pdfBytes.length === 0) {
+        throw new Error('Generated PDF is empty.');
+      }
+
+      // 5. Download the PDF
+      let downloadName = 'photos.pdf';
+      if (items.length === 1 && items[0].file && items[0].file.name) {
+        const baseName = items[0].file.name.replace(/\.[^/.]+$/, '');
+        downloadName = `${baseName}.pdf`;
+      }
+      try {
+        downloadBytes(pdfBytes, downloadName);
+      } catch (dlErr) {
+        throw new Error(`Download failed: ${dlErr.message}`);
+      }
+
+      // 6. Only show success message after generation & download preparation succeeded
+      toast('PDF created and downloaded successfully!', 'success');
     } catch (err) {
+      console.error('Photo to PDF error:', err);
+      const msg = err && err.message ? err.message : 'An unexpected error occurred while generating PDF.';
+      toast(`Failed to create PDF: ${msg}`, 'error');
+    } finally {
       progress.classList.remove('visible');
-      btn.disabled = false;
-      clearBtn.disabled = false;
-      toast(`Failed to create PDF: ${err.message}`, 'error');
-      console.error(err);
+      btn.disabled = items.length === 0;
+      clearBtn.disabled = items.length === 0;
     }
   });
 

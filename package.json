@@ -8,6 +8,7 @@
     "test": "node run-platform-regression-tests.js",
     "test:guard": "node verify-editor-guard.js",
     "test:razorpay": "node test-razorpay.js",
+    "test:photos": "node test-photo-to-pdf-dom.js && node test-photo-to-pdf-engine.js",
     "test:saas": "node test-saas-platform-suite.js",
     "test:all": "node run-platform-regression-tests.js"
   },
@@ -23,6 +24,7 @@
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "dotenv": "^18.0.10",
+    "pdf-lib": "^1.17.9",
     "pg": "^8.13.1",
     "razorpay": "^2.9.8"
   }

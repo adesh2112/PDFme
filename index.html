@@ -1376,6 +1376,16 @@
 <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true"></div>
 
 <!-- PDFme Platform Engines -->
+<script src="lib/pdf-lib.min.js"></script>
+<script>
+  if (typeof window !== 'undefined') {
+    if (window.PDFLib) {
+      window.pdfLib = window.PDFLib;
+      if (!window.PDFLib.pdfDocument) window.PDFLib.pdfDocument = window.PDFLib.PDFDocument;
+      if (!window.pdfLib.pdfDocument) window.pdfLib.pdfDocument = window.PDFLib.PDFDocument;
+    }
+  }
+</script>
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script src="js/razorpay-checkout.js"></script>
 <script src="lib/zip-util.js"></script>
