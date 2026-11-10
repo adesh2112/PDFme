@@ -1475,25 +1475,41 @@
   </div>
 </div>
 
-<!-- Folder Creation & Rename Modal -->
+<!-- Folder Creation & Rename Modal (Redesigned) -->
 <div class="saas-modal-backdrop" id="folder-modal-backdrop" onclick="if(event.target===this) closeFolderModal()">
-  <div class="saas-modal-box" role="dialog" aria-modal="true" aria-labelledby="folder-modal-title" style="max-width:440px;width:92%;">
-    <div class="saas-modal-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-      <h3 id="folder-modal-title" style="margin:0;font-size:1.15rem;font-weight:700;">Create New Folder</h3>
-      <button class="saas-modal-close" onclick="closeFolderModal()" aria-label="Close dialog">
+  <div class="saas-modal-box folder-modal-box" role="dialog" aria-modal="true" aria-labelledby="folder-modal-title" style="max-width:460px;width:92%;padding:28px 24px;border-radius:16px;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="folder-modal-icon-badge" style="width:44px;height:44px;border-radius:12px;background:rgba(244,185,66,0.18);border:1.5px solid rgba(244,185,66,0.4);display:flex;align-items:center;justify-content:center;color:var(--saas-accent);flex-shrink:0;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        <div>
+          <h3 id="folder-modal-title" style="margin:0;font-size:1.2rem;font-weight:700;letter-spacing:-0.01em;">Create New Folder</h3>
+          <p id="folder-modal-subtitle" style="font-size:0.8rem;color:var(--text-muted);margin:2px 0 0;">Organize documents into dedicated workspace folders.</p>
+        </div>
+      </div>
+      <button class="saas-modal-close" onclick="closeFolderModal()" aria-label="Close dialog" style="margin-top:-4px;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
     <form id="folder-modal-form" onsubmit="handleFolderFormSubmit(event)">
       <div style="margin-bottom:16px;">
-        <label for="folder-name-input" style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:6px;">Folder Name</label>
-        <input type="text" id="folder-name-input" class="auth-input" placeholder="e.g. Invoices, Contracts 2026, Tax" required style="width:100%;box-sizing:border-box;">
+        <label for="folder-name-input" style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:8px;">Folder Name</label>
+        <div style="position:relative;display:flex;align-items:center;">
+          <span style="position:absolute;left:12px;color:var(--text-muted);pointer-events:none;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          </span>
+          <input type="text" id="folder-name-input" class="auth-input" placeholder="e.g. Invoices 2026, Contracts, Taxes" required maxlength="60" style="width:100%;box-sizing:border-box;padding-left:38px;height:42px;font-size:0.95rem;">
+        </div>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin:6px 0 0;">Folders are private and synchronize permanently across all your devices.</p>
         <input type="hidden" id="folder-id-input" value="">
       </div>
-      <div id="folder-modal-error" style="display:none;color:var(--danger);font-size:0.8rem;margin-bottom:12px;"></div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;">
-        <button type="button" class="btn btn-ghost" onclick="closeFolderModal()">Cancel</button>
-        <button type="submit" id="folder-modal-submit-btn" class="btn btn-primary" style="padding:8px 20px;">Save Folder</button>
+      <div id="folder-modal-error" style="display:none;color:var(--danger);font-size:0.8rem;margin-bottom:14px;padding:8px 12px;background:rgba(239,68,68,0.1);border-radius:6px;border:1px solid rgba(239,68,68,0.2);"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+        <button type="button" class="btn btn-ghost" onclick="closeFolderModal()" style="padding:9px 18px;">Cancel</button>
+        <button type="submit" id="folder-modal-submit-btn" class="btn btn-primary" style="padding:9px 24px;font-weight:700;">Create Folder</button>
       </div>
     </form>
   </div>
@@ -1564,6 +1580,7 @@
 </script>
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script src="js/razorpay-checkout.js"></script>
+<script src="lib/pako.min.js"></script>
 <script src="lib/zip-util.js"></script>
 <script src="lib/office-converter.js"></script>
 <script src="lib/pdf-conversion-engine.js"></script>

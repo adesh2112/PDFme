@@ -981,16 +981,20 @@
                   const count = docs.filter(d => d.folderId === f.id).length;
                   return `
                     <div class="workspace-folder-card" onclick="openWorkspaceFolder('${f.id}')">
-                      <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-                        <span style="font-size:1.6rem;line-height:1;">📁</span>
+                      <div style="display:flex;align-items:center;gap:12px;min-width:0;">
+                        <div class="folder-svg-icon" style="width:36px;height:36px;border-radius:8px;background:rgba(244,185,66,0.18);display:flex;align-items:center;justify-content:center;color:var(--saas-accent);flex-shrink:0;">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                          </svg>
+                        </div>
                         <div style="min-width:0;">
-                          <h4 style="font-size:0.9rem;font-weight:700;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeAttr(f.name)}">${escapeHtml(f.name)}</h4>
-                          <span style="font-size:0.75rem;color:var(--text-muted);">${count} ${count === 1 ? 'file' : 'files'}</span>
+                          <h4 style="font-size:0.925rem;font-weight:700;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeAttr(f.name)}">${escapeHtml(f.name)}</h4>
+                          <span style="font-size:0.75rem;color:var(--text-muted);display:inline-block;margin-top:2px;">${count} ${count === 1 ? 'document' : 'documents'}</span>
                         </div>
                       </div>
                       <div style="display:flex;gap:4px;flex-shrink:0;" onclick="event.stopPropagation()">
-                        <button class="btn btn-ghost btn-sm" title="Rename Folder" onclick="promptRenameFolder('${f.id}', '${escapeAttr(f.name)}')" style="padding:3px 6px;font-size:0.75rem;">✎</button>
-                        <button class="btn btn-ghost btn-sm" title="Delete Folder" onclick="confirmDeleteFolder('${f.id}', '${escapeAttr(f.name)}')" style="padding:3px 6px;font-size:0.75rem;color:var(--danger);">✕</button>
+                        <button class="btn btn-ghost btn-sm" title="Rename Folder" onclick="promptRenameFolder('${f.id}', '${escapeAttr(f.name)}')" style="padding:4px 8px;font-size:0.75rem;border:1px solid var(--border);border-radius:6px;">✎</button>
+                        <button class="btn btn-ghost btn-sm" title="Delete Folder" onclick="confirmDeleteFolder('${f.id}', '${escapeAttr(f.name)}')" style="padding:4px 8px;font-size:0.75rem;color:var(--danger);border:1px solid var(--border);border-radius:6px;">✕</button>
                       </div>
                     </div>
                   `;
@@ -1093,6 +1097,10 @@
     if (!modal) return;
     const titleEl = document.getElementById('folder-modal-title');
     if (titleEl) titleEl.textContent = 'Create New Folder';
+    const subEl = document.getElementById('folder-modal-subtitle');
+    if (subEl) subEl.textContent = 'Organize documents into dedicated workspace folders.';
+    const submitBtn = document.getElementById('folder-modal-submit-btn');
+    if (submitBtn) submitBtn.textContent = 'Create Folder';
     const idInp = document.getElementById('folder-id-input');
     if (idInp) idInp.value = '';
     const nameInp = document.getElementById('folder-name-input');
@@ -1108,6 +1116,10 @@
     if (!modal) return;
     const titleEl = document.getElementById('folder-modal-title');
     if (titleEl) titleEl.textContent = 'Rename Folder';
+    const subEl = document.getElementById('folder-modal-subtitle');
+    if (subEl) subEl.textContent = 'Update the folder display name.';
+    const submitBtn = document.getElementById('folder-modal-submit-btn');
+    if (submitBtn) submitBtn.textContent = 'Save Changes';
     const idInp = document.getElementById('folder-id-input');
     if (idInp) idInp.value = folderId;
     const nameInp = document.getElementById('folder-name-input');

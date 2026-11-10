@@ -482,7 +482,7 @@ body:not(.light-theme) .saas-nav-link.active {
 
 .mobile-actions-group {
   display: grid;
-  grid-template-columns: 38px 1fr 1fr 1fr;
+  grid-template-columns: repeat(4, 1fr);
   align-items: center;
   gap: 8px;
   width: 100%;
@@ -491,7 +491,7 @@ body:not(.light-theme) .saas-nav-link.active {
 }
 
 /* ============================================================
-   CIRCULAR SUN / MOON THEME TOGGLE
+   CIRCULAR SUN / MOON THEME TOGGLE (NO BOX, NO BORDER, CLEAN)
    ============================================================ */
 .theme-toggle-btn.circular-theme-toggle,
 .mobile-action-btn.mobile-theme-btn.circular-theme-toggle {
@@ -501,58 +501,65 @@ body:not(.light-theme) .saas-nav-link.active {
   max-width: 38px !important;
   border-radius: 50% !important;
   padding: 0 !important;
-  margin: 0 !important;
+  margin: 0 auto !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
+  justify-self: center !important;
   flex: 0 0 38px !important;
   flex-shrink: 0 !important;
   cursor: pointer;
   outline: none;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
   box-sizing: border-box;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
   position: relative;
   overflow: visible;
 }
 
-/* Light Mode Theme Toggle */
+/* Light Mode Theme Toggle: completely borderless and box-free */
 body.light-theme .theme-toggle-btn.circular-theme-toggle,
 body.light-theme .mobile-action-btn.mobile-theme-btn.circular-theme-toggle {
-  background: #FFFFFF !important;
-  border: 1.5px solid rgba(245, 158, 11, 0.45) !important;
-  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25), 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
   color: #D97706 !important;
 }
 
 body.light-theme .theme-toggle-btn.circular-theme-toggle:hover,
 body.light-theme .mobile-action-btn.mobile-theme-btn.circular-theme-toggle:hover {
-  background: #FFFDF5 !important;
-  border-color: #F59E0B !important;
-  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.38) !important;
-  transform: scale(1.08) !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  transform: scale(1.15) !important;
 }
 
-/* Dark Mode Theme Toggle */
+/* Dark Mode Theme Toggle: completely borderless and box-free */
 body:not(.light-theme) .theme-toggle-btn.circular-theme-toggle,
 body:not(.light-theme) .mobile-action-btn.mobile-theme-btn.circular-theme-toggle {
-  background: #151F32 !important;
-  border: 1.5px solid rgba(252, 211, 77, 0.35) !important;
-  box-shadow: 0 0 14px rgba(252, 211, 77, 0.22), inset 0 0 8px rgba(0, 0, 0, 0.45) !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
   color: #FCD34D !important;
 }
 
 body:not(.light-theme) .theme-toggle-btn.circular-theme-toggle:hover,
 body:not(.light-theme) .mobile-action-btn.mobile-theme-btn.circular-theme-toggle:hover {
-  background: #1A2740 !important;
-  border-color: #FCD34D !important;
-  box-shadow: 0 0 18px rgba(252, 211, 77, 0.4), inset 0 0 8px rgba(0, 0, 0, 0.45) !important;
-  transform: scale(1.08) !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  transform: scale(1.15) !important;
 }
 
 /* Accessible Focus Ring */
 .theme-toggle-btn.circular-theme-toggle:focus-visible,
 .mobile-action-btn.mobile-theme-btn.circular-theme-toggle:focus-visible {
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.5) !important;
+  outline: 2px solid var(--saas-accent) !important;
+  outline-offset: 3px !important;
+  box-shadow: none !important;
+}
 }
 
 /* Theme Icon Transition & Animation */
@@ -1451,3 +1458,140 @@ html, body {
     gap: 24px;
   }
 }
+
+/* ============================================================
+   Page Organizer & Interactive Thumbnail Grid
+   ============================================================ */
+.org-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.org-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.org-card {
+  position: relative;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.org-card:hover {
+  border-color: var(--saas-accent);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+.org-card.is-deleted {
+  opacity: 0.38;
+  border-color: rgba(239, 68, 68, 0.6) !important;
+  filter: grayscale(85%);
+}
+
+.org-card.is-deleted .org-page-badge {
+  text-decoration: line-through;
+  color: var(--danger);
+}
+
+.org-card-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.org-page-badge {
+  background: rgba(244, 185, 66, 0.15);
+  color: var(--text);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.org-rot-badge {
+  font-size: 0.68rem;
+  color: var(--saas-accent);
+  font-weight: 700;
+}
+
+.org-thumb-container {
+  width: 100%;
+  height: 124px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: rgba(125, 125, 125, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 4px;
+  margin: 4px 0;
+}
+
+.org-thumb-canvas {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transition: transform 0.25s ease;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  border-radius: 2px;
+}
+
+.org-card-actions {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.org-card-actions .btn {
+  padding: 3px 6px;
+  font-size: 0.72rem;
+  line-height: 1;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  min-width: 24px;
+  text-align: center;
+}
+
+.org-card-actions .btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--saas-accent);
+}
+
+.org-card-actions .btn.btn-del:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
+}
+

@@ -15,6 +15,8 @@
   let multipleFiles = [];
   let processedResult = null;
   let pdfPageCount = 0;
+  let pageOrganizerCards = [];
+  let currentParsedBulkRows = [];
 
   // Helpers
   function downloadBlob(bytes, filename, mimeType = 'application/pdf') {
@@ -85,6 +87,8 @@
     multipleFiles = [];
     processedResult = null;
     pdfPageCount = 0;
+    pageOrganizerCards = [];
+    currentParsedBulkRows = [];
 
     const modal = document.getElementById('tool-modal-backdrop');
     if (!modal) return;
@@ -311,16 +315,30 @@
     try {
       uploadedFileBytes = await readFileAsArrayBuffer(file);
 
-      // If it's a PDF, inspect page count
+      // If it's a PDF, inspect page count and populate organizer
       if (file.name.toLowerCase().endsWith('.pdf')) {
         try {
           if (window.PDFLib) {
             const pdfDoc = await window.PDFLib.PDFDocument.load(uploadedFileBytes, { ignoreEncryption: true });
             pdfPageCount = pdfDoc.getPageCount();
+            pageOrganizerCards = [];
+            for (let i = 0; i < pdfPageCount; i++) {
+              pageOrganizerCards.push({
+                originalIndex: i,
+                pageNum: i + 1,
+                rotation: 0,
+                deleted: false,
+                selected: true
+              });
+            }
           }
         } catch (e) {
           console.warn('Could not read page count via PDFLib:', e.message);
         }
+      }
+
+      if (currentToolId === 'gen-bulk' || file.name.toLowerCase().endsWith('.csv') || file.name.toLowerCase().endsWith('.xlsx')) {
+        await parseBulkFileRecords(file, uploadedFileBytes);
       }
 
       renderToolOptions(currentToolId);
@@ -360,6 +378,346 @@
     }
   }
 
+  // --- Page Organizer Component ---
+  function renderPageOrganizerUI(optArea, toolId) {
+    if (!optArea) return;
+    if (pageOrganizerCards.length === 0 && pdfPageCount > 0) {
+      for (let i = 0; i < pdfPageCount; i++) {
+        pageOrganizerCards.push({
+          originalIndex: i,
+          pageNum: i + 1,
+          rotation: 0,
+          deleted: false,
+          selected: true
+        });
+      }
+    }
+
+    const isSplit = toolId === 'split-pdf';
+    const isRotate = toolId === 'rotate-pdf';
+    const isDelete = toolId === 'delete-pages';
+    const isExtract = toolId === 'extract-pages';
+
+    let promptText = 'Rearrange, rotate, delete, or select pages using the interactive thumbnail cards below:';
+    if (isSplit) promptText = 'Select pages to split, or specify custom page ranges below:';
+    else if (isRotate) promptText = 'Click ↻ on any thumbnail or rotate all pages together:';
+    else if (isDelete) promptText = 'Click the 🗑 icon on unwanted pages to mark them for deletion:';
+    else if (isExtract) promptText = 'Select the pages you want to extract into a new standalone PDF:';
+
+    const activeCount = pageOrganizerCards.filter(c => !c.deleted).length;
+    const selectedCount = pageOrganizerCards.filter(c => c.selected && !c.deleted).length;
+
+    let html = `
+      <div class="tool-option-group" style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;">
+        <p style="font-size:0.85rem;font-weight:700;margin-bottom:8px;">${promptText}</p>
+
+        <div class="org-toolbar">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="organizerRotateAll(90)">↻ Rotate All 90°</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="organizerToggleSelectAll()">Toggle Select All</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="organizerResetOrder()">Reset</button>
+          </div>
+          <span id="organizer-summary-text" style="font-size:0.8rem;color:var(--text-muted);font-weight:600;">
+            ${pdfPageCount || pageOrganizerCards.length} pages (${activeCount} active, ${selectedCount} selected)
+          </span>
+        </div>
+
+        ${isSplit ? `
+          <div style="margin-bottom:12px;padding:10px;background:var(--bg);border-radius:6px;border:1px solid var(--border);">
+            <div style="display:flex;gap:14px;margin-bottom:8px;">
+              <label style="display:flex;align-items:center;gap:6px;font-size:0.825rem;cursor:pointer;">
+                <input type="radio" name="split-mode" value="all" checked onchange="toggleSplitRangeInput(false)">
+                Every page as a separate PDF
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:0.825rem;cursor:pointer;">
+                <input type="radio" name="split-mode" value="ranges" onchange="toggleSplitRangeInput(true)">
+                Custom page ranges
+              </label>
+            </div>
+            <div id="split-range-box" style="display:none;">
+              <input type="text" id="split-ranges-input" class="auth-input" placeholder="e.g. 1-2, 3-5" style="width:100%;box-sizing:border-box;font-size:0.85rem;">
+            </div>
+          </div>
+        ` : ''}
+
+        ${isDelete ? `
+          <div style="margin-bottom:10px;">
+            <input type="text" id="delete-pages-input" class="auth-input" placeholder="Or enter comma-separated pages to delete (e.g. 2, 4-5)" style="width:100%;box-sizing:border-box;font-size:0.85rem;">
+          </div>
+        ` : ''}
+
+        ${isExtract ? `
+          <div style="margin-bottom:10px;">
+            <input type="text" id="extract-pages-input" class="auth-input" placeholder="Or enter comma-separated pages to extract (e.g. 1, 3-4)" style="width:100%;box-sizing:border-box;font-size:0.85rem;">
+          </div>
+        ` : ''}
+
+        <div class="org-grid" id="organizer-grid-container">
+          ${renderOrganizerCardsHtml()}
+        </div>
+      </div>
+    `;
+
+    optArea.innerHTML = html;
+    setTimeout(renderAllOrganizerThumbnails, 60);
+  }
+
+  function renderOrganizerCardsHtml() {
+    return pageOrganizerCards.map((card, idx) => `
+      <div class="org-card ${card.deleted ? 'is-deleted' : ''}" id="org-card-${idx}">
+        <div class="org-card-header">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+            <input type="checkbox" ${card.selected ? 'checked' : ''} onchange="organizerToggleSelect(${idx})">
+            <span class="org-page-badge">#${card.originalIndex + 1}</span>
+          </label>
+          <span class="org-rot-badge" id="org-rot-badge-${idx}">${card.rotation ? card.rotation + '°' : ''}</span>
+        </div>
+        <div class="org-thumb-container">
+          <canvas class="org-thumb-canvas" id="org-thumb-canvas-${card.originalIndex}" style="transform: rotate(${card.rotation}deg);"></canvas>
+        </div>
+        <div class="org-card-actions">
+          <button type="button" class="btn btn-ghost btn-xs" title="Move Left" onclick="organizerMoveLeft(${idx})" ${idx === 0 ? 'disabled' : ''}>←</button>
+          <button type="button" class="btn btn-ghost btn-xs" title="Rotate 90°" onclick="organizerRotateCard(${idx})">↻</button>
+          <button type="button" class="btn btn-ghost btn-xs" title="Move Right" onclick="organizerMoveRight(${idx})" ${idx === pageOrganizerCards.length - 1 ? 'disabled' : ''}>→</button>
+          <button type="button" class="btn btn-ghost btn-xs btn-del" title="${card.deleted ? 'Restore Page' : 'Delete Page'}" onclick="organizerToggleDelete(${idx})">${card.deleted ? '↩' : '🗑'}</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  window.organizerRotateCard = function(idx) {
+    if (!pageOrganizerCards[idx]) return;
+    pageOrganizerCards[idx].rotation = (pageOrganizerCards[idx].rotation + 90) % 360;
+    const canvas = document.getElementById(`org-thumb-canvas-${pageOrganizerCards[idx].originalIndex}`);
+    if (canvas) canvas.style.transform = `rotate(${pageOrganizerCards[idx].rotation}deg)`;
+    const rotBadge = document.getElementById(`org-rot-badge-${idx}`);
+    if (rotBadge) rotBadge.textContent = pageOrganizerCards[idx].rotation ? pageOrganizerCards[idx].rotation + '°' : '';
+  };
+
+  window.organizerMoveLeft = function(idx) {
+    if (idx <= 0) return;
+    const temp = pageOrganizerCards[idx];
+    pageOrganizerCards[idx] = pageOrganizerCards[idx - 1];
+    pageOrganizerCards[idx - 1] = temp;
+    refreshOrganizerGrid();
+  };
+
+  window.organizerMoveRight = function(idx) {
+    if (idx >= pageOrganizerCards.length - 1) return;
+    const temp = pageOrganizerCards[idx];
+    pageOrganizerCards[idx] = pageOrganizerCards[idx + 1];
+    pageOrganizerCards[idx + 1] = temp;
+    refreshOrganizerGrid();
+  };
+
+  window.organizerToggleDelete = function(idx) {
+    if (!pageOrganizerCards[idx]) return;
+    pageOrganizerCards[idx].deleted = !pageOrganizerCards[idx].deleted;
+    refreshOrganizerGrid();
+  };
+
+  window.organizerToggleSelect = function(idx) {
+    if (!pageOrganizerCards[idx]) return;
+    pageOrganizerCards[idx].selected = !pageOrganizerCards[idx].selected;
+    updateOrganizerSummary();
+  };
+
+  window.organizerRotateAll = function(angle = 90) {
+    pageOrganizerCards.forEach(c => {
+      c.rotation = (c.rotation + angle) % 360;
+    });
+    refreshOrganizerGrid();
+  };
+
+  window.organizerToggleSelectAll = function() {
+    const allSelected = pageOrganizerCards.every(c => c.selected);
+    pageOrganizerCards.forEach(c => { c.selected = !allSelected; });
+    refreshOrganizerGrid();
+  };
+
+  window.organizerResetOrder = function() {
+    pageOrganizerCards.sort((a, b) => a.originalIndex - b.originalIndex);
+    pageOrganizerCards.forEach(c => {
+      c.rotation = 0;
+      c.deleted = false;
+      c.selected = true;
+    });
+    refreshOrganizerGrid();
+  };
+
+  function refreshOrganizerGrid() {
+    const container = document.getElementById('organizer-grid-container');
+    if (container) {
+      container.innerHTML = renderOrganizerCardsHtml();
+      renderAllOrganizerThumbnails();
+    }
+    updateOrganizerSummary();
+  }
+
+  function updateOrganizerSummary() {
+    const summaryEl = document.getElementById('organizer-summary-text');
+    if (summaryEl) {
+      const activeCount = pageOrganizerCards.filter(c => !c.deleted).length;
+      const selectedCount = pageOrganizerCards.filter(c => c.selected && !c.deleted).length;
+      summaryEl.textContent = `${pdfPageCount || pageOrganizerCards.length} pages (${activeCount} active, ${selectedCount} selected)`;
+    }
+  }
+
+  let thumbnailCache = {};
+  async function renderAllOrganizerThumbnails() {
+    if (!window.pdfjsLib || !uploadedFileBytes) return;
+    try {
+      const pdf = await window.pdfjsLib.getDocument({ data: uploadedFileBytes.slice(0) }).promise;
+      for (const card of pageOrganizerCards) {
+        const canvas = document.getElementById(`org-thumb-canvas-${card.originalIndex}`);
+        if (!canvas) continue;
+        if (thumbnailCache[card.originalIndex]) {
+          const img = new Image();
+          img.onload = () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+          };
+          img.src = thumbnailCache[card.originalIndex];
+          continue;
+        }
+        const page = await pdf.getPage(card.originalIndex + 1);
+        const viewport = page.getViewport({ scale: 0.28 });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        thumbnailCache[card.originalIndex] = canvas.toDataURL();
+      }
+    } catch (e) {
+      console.warn('Could not render thumbnail canvas:', e.message);
+    }
+  }
+
+  // --- Bulk Generator Helpers ---
+  function renderBulkGeneratorOptions(optArea) {
+    optArea.innerHTML = `
+      <div class="tool-option-group" style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;">
+        <label style="font-weight:700;font-size:0.85rem;display:block;margin-bottom:8px;">Select Document Template:</label>
+        <select id="bulk-template-select" class="auth-input" style="width:100%;margin-bottom:12px;">
+          <option value="invoice" selected>Tax Invoice (Generates customized invoices with GST)</option>
+          <option value="offer-letter">Employment Offer Letter (Generates candidate offer letters)</option>
+          <option value="salary-slip">Monthly Salary Slip (Generates employee payslips)</option>
+          <option value="experience-certificate">Experience &amp; Relieving Certificate</option>
+        </select>
+        <div id="bulk-records-summary" style="padding:10px;background:var(--bg);border-radius:6px;border:1px solid var(--border);font-size:0.825rem;color:var(--text-muted);">
+          Upload a .CSV or .XLSX file with recipient rows (e.g. name, amount/salary, date, designation) to batch-generate documents.
+        </div>
+        <div style="margin-top:10px;display:flex;gap:10px;">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="downloadSampleBulkCsv()">📥 Download Sample CSV Template</button>
+        </div>
+      </div>
+    `;
+    if (uploadedFile && uploadedFileBytes) {
+      parseBulkFileRecords(uploadedFile, uploadedFileBytes);
+    }
+  }
+
+  async function parseBulkFileRecords(file, bytes) {
+    const summaryEl = document.getElementById('bulk-records-summary');
+    const executeBtn = document.getElementById('tool-execute-btn');
+    try {
+      let rows = [];
+      const fileName = file.name.toLowerCase();
+      if (fileName.endsWith('.xlsx')) {
+        if (window.OfficeConverter && window.OfficeConverter.extractXlsxContent) {
+          const rawRows = window.OfficeConverter.extractXlsxContent(bytes);
+          if (rawRows.length > 1) {
+            const headers = rawRows[0].map(h => String(h || '').trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
+            for (let r = 1; r < rawRows.length; r++) {
+              const rowObj = {};
+              rawRows[r].forEach((val, idx) => {
+                const key = headers[idx] || `col_${idx}`;
+                rowObj[key] = val;
+              });
+              rows.push(rowObj);
+            }
+          }
+        }
+      } else {
+        // CSV parsing
+        const text = new TextDecoder('utf-8').decode(bytes);
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        if (lines.length > 1) {
+          const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, '').toLowerCase().replace(/[^a-z0-9]/g, ''));
+          for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(',').map(c => c.trim().replace(/^["']|["']$/g, ''));
+            const rowObj = {};
+            cols.forEach((val, idx) => {
+              const key = headers[idx] || `col_${idx}`;
+              rowObj[key] = val;
+            });
+            rows.push(rowObj);
+          }
+        }
+      }
+
+      currentParsedBulkRows = rows;
+      if (summaryEl) {
+        if (rows.length > 0) {
+          summaryEl.innerHTML = `<span style="color:#10B981;font-weight:700;">✓ Ready to batch-generate:</span> Parsed <strong>${rows.length} recipient records</strong> from <em>${file.name}</em>.`;
+          if (executeBtn) executeBtn.disabled = false;
+        } else {
+          summaryEl.innerHTML = `<span style="color:var(--danger);">No data rows found in ${file.name}. Please ensure your file has a header row and at least 1 record.</span>`;
+          if (executeBtn) executeBtn.disabled = true;
+        }
+      }
+    } catch (e) {
+      if (summaryEl) summaryEl.innerHTML = `<span style="color:var(--danger);">Error reading data: ${e.message}</span>`;
+    }
+  }
+
+  window.downloadSampleBulkCsv = function() {
+    const csvContent = "name,email,amount,designation,date\nAlice Smith,alice@example.com,75000,Principal Engineer,2026-11-15\nBob Jones,bob@example.com,62000,Senior Designer,2026-11-15\nCarol Williams,carol@example.com,54000,Operations Lead,2026-11-15\nDavid Chen,david@example.com,81000,Product Manager,2026-11-15";
+    downloadBlob(new TextEncoder().encode(csvContent), "sample_bulk_recipients.csv", "text/csv");
+  };
+
+  // --- Image to PDF Options ---
+  function renderImageToPdfOptions(optArea) {
+    optArea.innerHTML = `
+      <div class="tool-option-group" style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <label style="font-weight:700;font-size:0.85rem;display:block;margin-bottom:6px;">Page Layout:</label>
+            <select id="img-pagesize-select" class="auth-input" style="width:100%;">
+              <option value="a4" selected>Standard A4 (Portrait/Landscape Auto)</option>
+              <option value="letter">US Letter (8.5 × 11 in)</option>
+              <option value="fit">Fit to Image Dimensions (Original size)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-weight:700;font-size:0.85rem;display:block;margin-bottom:6px;">Quality Mode:</label>
+            <select id="img-quality-select" class="auth-input" style="width:100%;">
+              <option value="high" selected>High Resolution (Lossless vector/photo)</option>
+              <option value="balanced">Balanced (Optimal compression)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // --- Conversion Options ---
+  function renderConversionOptions(optArea, toolId) {
+    optArea.innerHTML = `
+      <div class="tool-option-group" style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <span style="font-size:0.85rem;font-weight:700;">Engine: High-Fidelity OpenXML &amp; Vector Rendering</span>
+          <span style="font-size:0.8rem;color:var(--saas-accent);font-weight:700;">✓ Ready to Convert</span>
+        </div>
+        <p style="font-size:0.8rem;color:var(--text-muted);margin:0;line-height:1.45;">
+          Preserves original formatting, fonts, page boundaries, images, and tabular columns accurately without data loss.
+        </p>
+      </div>
+    `;
+  }
+
   // --- Render Options Per Tool ---
   function renderToolOptions(toolId) {
     const optArea = document.getElementById('tool-options-area');
@@ -367,25 +725,32 @@
 
     switch (toolId) {
       case 'split-pdf':
-        optArea.innerHTML = `
-          <div class="tool-option-group" style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;">
-            <label style="font-weight:700;font-size:0.85rem;display:block;margin-bottom:8px;">Split Mode:</label>
-            <div style="display:flex;gap:14px;margin-bottom:12px;">
-              <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer;">
-                <input type="radio" name="split-mode" value="all" checked onchange="toggleSplitRangeInput(false)">
-                Every page as a separate PDF (Total: ${pdfPageCount || 'All'} pages)
-              </label>
-              <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer;">
-                <input type="radio" name="split-mode" value="ranges" onchange="toggleSplitRangeInput(true)">
-                Custom page ranges
-              </label>
-            </div>
-            <div id="split-range-box" style="display:none;">
-              <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:4px;">Enter ranges (comma-separated, e.g. "1-2, 3-5"):</label>
-              <input type="text" id="split-ranges-input" class="auth-input" placeholder="e.g. 1-2, 3-5" style="width:100%;box-sizing:border-box;">
-            </div>
-          </div>
-        `;
+      case 'rotate-pdf':
+      case 'organize-pdf':
+      case 'delete-pages':
+      case 'extract-pages':
+        renderPageOrganizerUI(optArea, toolId);
+        break;
+
+      case 'gen-bulk':
+        renderBulkGeneratorOptions(optArea);
+        break;
+
+      case 'jpg-to-pdf':
+      case 'png-to-pdf':
+        renderImageToPdfOptions(optArea);
+        break;
+
+      case 'pdf-to-word':
+      case 'word-to-pdf':
+      case 'pdf-to-excel':
+      case 'excel-to-pdf':
+      case 'pdf-to-ppt':
+      case 'ppt-to-pdf':
+      case 'pptx-to-pdf':
+      case 'pdf-to-jpg':
+      case 'pdf-to-png':
+        renderConversionOptions(optArea, toolId);
         break;
 
       case 'compress-pdf':
@@ -402,51 +767,6 @@
                 <strong>Extreme</strong> (Maximum size reduction for email)
               </label>
             </div>
-          </div>
-        `;
-        break;
-
-      case 'rotate-pdf':
-        optArea.innerHTML = `
-          <div class="tool-option-group" style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;">
-            <label style="font-weight:700;font-size:0.85rem;display:block;margin-bottom:8px;">Rotation Angle:</label>
-            <div style="display:flex;gap:10px;margin-bottom:12px;">
-              <button type="button" class="btn btn-ghost btn-sm rotate-angle-btn active" data-angle="90" onclick="setRotateAngle(this, 90)">↻ 90° Clockwise</button>
-              <button type="button" class="btn btn-ghost btn-sm rotate-angle-btn" data-angle="180" onclick="setRotateAngle(this, 180)">↻ 180° Half Turn</button>
-              <button type="button" class="btn btn-ghost btn-sm rotate-angle-btn" data-angle="270" onclick="setRotateAngle(this, 270)">↺ 90° Counter-CW</button>
-            </div>
-            <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:4px;">Pages to rotate ("all" or e.g. "1, 3-5"):</label>
-            <input type="text" id="rotate-pages-input" class="auth-input" value="all" style="width:100%;box-sizing:border-box;">
-          </div>
-        `;
-        break;
-
-      case 'organize-pdf':
-        optArea.innerHTML = `
-          <div class="tool-option-group" style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;">
-            <label style="font-weight:700;font-size:0.85rem;display:block;margin-bottom:4px;">New Page Sequence:</label>
-            <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:8px;">Document has ${pdfPageCount} pages. Enter 1-based page order (e.g. "${Array.from({length: Math.min(3, pdfPageCount || 3)}, (_, i) => pdfPageCount - i).join(', ')}"):</p>
-            <input type="text" id="reorder-sequence-input" class="auth-input" value="${Array.from({length: pdfPageCount || 3}, (_, i) => i + 1).reverse().join(', ')}" style="width:100%;box-sizing:border-box;">
-          </div>
-        `;
-        break;
-
-      case 'delete-pages':
-        optArea.innerHTML = `
-          <div class="tool-option-group" style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;">
-            <label style="font-weight:700;font-size:0.85rem;display:block;margin-bottom:4px;">Pages to Delete:</label>
-            <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:8px;">Document has ${pdfPageCount} pages. Enter page numbers or ranges to remove (e.g. "2, 4-5"):</p>
-            <input type="text" id="delete-pages-input" class="auth-input" placeholder="e.g. 2, 4-5" style="width:100%;box-sizing:border-box;">
-          </div>
-        `;
-        break;
-
-      case 'extract-pages':
-        optArea.innerHTML = `
-          <div class="tool-option-group" style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;">
-            <label style="font-weight:700;font-size:0.85rem;display:block;margin-bottom:4px;">Pages to Extract:</label>
-            <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:8px;">Document has ${pdfPageCount} pages. Enter page numbers or ranges to save into a new PDF (e.g. "1, 3-4"):</p>
-            <input type="text" id="extract-pages-input" class="auth-input" placeholder="e.g. 1, 3-4" style="width:100%;box-sizing:border-box;">
           </div>
         `;
         break;
@@ -792,6 +1112,17 @@
           await handleDocCompare();
           break;
 
+        // 5. Business Tools
+        case 'gen-invoice':
+        case 'gen-offer':
+        case 'gen-payslip':
+        case 'gen-exp-cert':
+          await window.generateBusinessDocNow();
+          break;
+        case 'gen-bulk':
+          await handleBulkGenerator();
+          break;
+
         default:
           throw new Error('Handler for tool "' + currentToolId + '" is ready to run.');
       }
@@ -913,6 +1244,7 @@
 
   // --- 1. Split PDF ---
   async function handleSplitPdf() {
+    showToolProcessing('Splitting document...');
     const mode = document.querySelector('input[name="split-mode"]:checked')?.value || 'all';
     let options = { mode: 'all' };
 
@@ -954,64 +1286,116 @@
 
   // --- 3. Rotate PDF ---
   async function handleRotatePdf() {
-    const targetPages = document.getElementById('rotate-pages-input')?.value.trim() || 'all';
-    const rotatedBytes = await window.PdfOrganization.rotatePdf(uploadedFileBytes, activeRotateAngle, targetPages);
+    showToolProcessing('Rotating PDF pages...');
+    const activeCards = pageOrganizerCards.filter(c => !c.deleted);
+    const hasPerCardRotations = activeCards.some(c => c.rotation !== 0);
+    let rotatedBytes;
+
+    if (pageOrganizerCards.length > 0 && (hasPerCardRotations || activeCards.length < pageOrganizerCards.length)) {
+      const pagePlan = activeCards.map(c => ({
+        index: c.originalIndex,
+        rotationDelta: c.rotation
+      }));
+      rotatedBytes = await window.PdfOrganization.applyPageModifications(uploadedFileBytes, pagePlan);
+    } else {
+      const targetPages = document.getElementById('rotate-pages-input')?.value.trim() || 'all';
+      rotatedBytes = await window.PdfOrganization.rotatePdf(uploadedFileBytes, activeRotateAngle, targetPages);
+    }
+
     const baseName = uploadedFile.name.replace(/\.pdf$/i, '');
     const outName = `${baseName}_rotated.pdf`;
 
     showToolSuccess({
       filename: outName,
       bytes: rotatedBytes,
-      message: `Successfully rotated pages by ${activeRotateAngle}°!`
+      message: `Pages successfully rotated and updated!`
     });
   }
 
   // --- 4. Organize / Reorder PDF ---
   async function handleReorderPdf() {
-    const seqStr = document.getElementById('reorder-sequence-input')?.value.trim();
-    if (!seqStr) throw new Error('Please enter desired page order (e.g. "3, 1, 2").');
-    const order1Based = seqStr.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
-    if (order1Based.length === 0) throw new Error('Invalid sequence format.');
-    const order0Based = order1Based.map(n => n - 1);
+    showToolProcessing('Reordering pages and applying layout...');
+    let reorderedBytes;
+    const activeCards = pageOrganizerCards.filter(c => !c.deleted);
 
-    const reorderedBytes = await window.PdfOrganization.reorderPdfPages(uploadedFileBytes, order0Based);
+    if (activeCards.length > 0) {
+      const pagePlan = activeCards.map(c => ({
+        index: c.originalIndex,
+        rotationDelta: c.rotation
+      }));
+      reorderedBytes = await window.PdfOrganization.applyPageModifications(uploadedFileBytes, pagePlan);
+    } else {
+      const seqStr = document.getElementById('reorder-sequence-input')?.value.trim();
+      if (!seqStr) throw new Error('Please enter desired page order (e.g. "3, 1, 2").');
+      const order1Based = seqStr.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+      if (order1Based.length === 0) throw new Error('Invalid sequence format.');
+      const order0Based = order1Based.map(n => n - 1);
+      reorderedBytes = await window.PdfOrganization.reorderPdfPages(uploadedFileBytes, order0Based);
+    }
+
     const baseName = uploadedFile.name.replace(/\.pdf$/i, '');
     const outName = `${baseName}_reordered.pdf`;
 
     showToolSuccess({
       filename: outName,
       bytes: reorderedBytes,
-      message: `Pages successfully reordered to [${order1Based.join(', ')}]!`
+      message: `Pages successfully reordered (${activeCards.length || 'all'} pages saved)!`
     });
   }
 
   // --- 5. Delete Pages ---
   async function handleDeletePagesPdf() {
-    const deleteStr = document.getElementById('delete-pages-input')?.value.trim();
-    if (!deleteStr) throw new Error('Please specify which page numbers to delete.');
-    const prunedBytes = await window.PdfOrganization.deletePdfPages(uploadedFileBytes, deleteStr);
+    showToolProcessing('Deleting selected pages...');
+    let prunedBytes;
+    const activeCards = pageOrganizerCards.filter(c => !c.deleted && c.selected);
+
+    if (pageOrganizerCards.length > 0 && pageOrganizerCards.some(c => c.deleted || !c.selected)) {
+      if (activeCards.length === 0) throw new Error('Cannot delete all pages of the document.');
+      const pagePlan = activeCards.map(c => ({ index: c.originalIndex, rotationDelta: c.rotation }));
+      prunedBytes = await window.PdfOrganization.applyPageModifications(uploadedFileBytes, pagePlan);
+    } else {
+      const deleteStr = document.getElementById('delete-pages-input')?.value.trim();
+      if (!deleteStr) throw new Error('Please click 🗑 on cards or enter page numbers to delete.');
+      prunedBytes = await window.PdfOrganization.deletePdfPages(uploadedFileBytes, deleteStr);
+    }
+
     const baseName = uploadedFile.name.replace(/\.pdf$/i, '');
     const outName = `${baseName}_pruned.pdf`;
 
     showToolSuccess({
       filename: outName,
       bytes: prunedBytes,
-      message: `Specified pages deleted successfully!`
+      message: `Specified pages deleted successfully (${activeCards.length} pages remaining)!`
     });
   }
 
   // --- 6. Extract Pages ---
   async function handleExtractPagesPdf() {
-    const extractStr = document.getElementById('extract-pages-input')?.value.trim();
-    if (!extractStr) throw new Error('Please specify which page numbers to extract.');
-    const extractedBytes = await window.PdfOrganization.extractPdfPages(uploadedFileBytes, extractStr);
+    showToolProcessing('Extracting pages...');
+    let extractedBytes;
+    const selectedCards = pageOrganizerCards.filter(c => c.selected && !c.deleted);
+
+    if (pageOrganizerCards.length > 0 && selectedCards.length > 0 && selectedCards.length < pageOrganizerCards.length) {
+      const pagePlan = selectedCards.map(c => ({ index: c.originalIndex, rotationDelta: c.rotation }));
+      extractedBytes = await window.PdfOrganization.applyPageModifications(uploadedFileBytes, pagePlan);
+    } else {
+      const extractStr = document.getElementById('extract-pages-input')?.value.trim();
+      if (!extractStr && selectedCards.length === 0) throw new Error('Please select which pages to extract.');
+      if (extractStr) {
+        extractedBytes = await window.PdfOrganization.extractPdfPages(uploadedFileBytes, extractStr);
+      } else {
+        const pagePlan = selectedCards.map(c => ({ index: c.originalIndex, rotationDelta: c.rotation }));
+        extractedBytes = await window.PdfOrganization.applyPageModifications(uploadedFileBytes, pagePlan);
+      }
+    }
+
     const baseName = uploadedFile.name.replace(/\.pdf$/i, '');
     const outName = `${baseName}_extracted.pdf`;
 
     showToolSuccess({
       filename: outName,
       bytes: extractedBytes,
-      message: `Selected pages extracted into new document!`
+      message: `Selected pages successfully extracted into new document!`
     });
   }
 
@@ -1084,14 +1468,15 @@
 
   // --- 10. Unlock PDF ---
   async function handleUnlockPdf() {
-    const password = document.getElementById('unlock-password-input')?.value.trim() || '';
+    const password = document.getElementById('unlock-password-input')?.value || '';
     let decryptedBytes;
     try {
-      decryptedBytes = await window.PdfSecurity.removePasswordPdf(uploadedFileBytes, password);
+      decryptedBytes = await window.PdfSecurity.removePasswordPdf(uploadedFileBytes, password, window.pdfjsLib);
     } catch (e) {
-      // Fallback via PDFLib load with password
-      const doc = await window.PDFLib.PDFDocument.load(uploadedFileBytes, { password });
-      decryptedBytes = await doc.save();
+      if (e.name === 'PasswordException' || (e.message && e.message.toLowerCase().includes('password'))) {
+        throw new Error('Incorrect password. Please verify and enter the correct password to unlock this document.');
+      }
+      throw new Error('Failed to unlock document: ' + (e.message || 'Unsupported encryption format'));
     }
 
     const baseName = uploadedFile.name.replace(/\.pdf$/i, '');
@@ -1100,7 +1485,7 @@
     showToolSuccess({
       filename: outName,
       bytes: decryptedBytes,
-      message: `Password encryption successfully removed!`
+      message: `Password encryption successfully removed! Document is now unlocked.`
     });
   }
 
@@ -1306,17 +1691,42 @@
   }
 
   async function handleImageToPdf() {
+    showToolProcessing('Converting image to PDF document...');
     const ext = uploadedFile.name.split('.').pop().toLowerCase();
     const isJpg = ext === 'jpg' || ext === 'jpeg';
+    const pageSize = document.getElementById('img-pagesize-select')?.value || 'a4';
     const imagesList = [{ bytes: uploadedFileBytes, type: isJpg ? 'jpg' : 'png' }];
-    const pdfBytes = await window.PdfConversion.imagesToPdf(imagesList, 'a4');
+    const pdfBytes = await window.PdfConversion.imagesToPdf(imagesList, pageSize);
     const baseName = uploadedFile.name.replace(/\.[^.]+$/, '');
     const outName = `${baseName}.pdf`;
 
     showToolSuccess({
       filename: outName,
       bytes: pdfBytes,
-      message: `Image converted to A4 PDF document!`
+      message: `Image converted to ${pageSize.toUpperCase()} PDF document!`
+    });
+  }
+
+  // --- Bulk Batch Document Generator ---
+  async function handleBulkGenerator() {
+    if (!currentParsedBulkRows || currentParsedBulkRows.length === 0) {
+      throw new Error('Please upload a valid CSV or XLSX file containing recipient records.');
+    }
+    const templateType = document.getElementById('bulk-template-select')?.value || 'invoice';
+    showToolProcessing(`Generating ${currentParsedBulkRows.length} documents... 0% complete`);
+
+    const res = await window.BusinessDocs.generateBulkDocuments(templateType, currentParsedBulkRows, (prog) => {
+      showToolProcessing(`Generating documents... ${prog.index} of ${prog.total} (${prog.percent}%)`);
+    });
+
+    const baseName = uploadedFile ? uploadedFile.name.replace(/\.[^.]+$/, '') : 'Bulk_Docs';
+    const outName = `${baseName}_generated_bundle.zip`;
+
+    showToolSuccess({
+      filename: outName,
+      bytes: res.zip,
+      mimeType: 'application/zip',
+      message: `Generated ${res.count} personalized ${templateType} documents bundled in ZIP!`
     });
   }
 

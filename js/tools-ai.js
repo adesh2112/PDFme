@@ -5,6 +5,28 @@
  */
 
 async function callAiApi(endpoint, payload) {
+  if (typeof window === 'undefined') {
+    // Node test harness execution
+    try {
+      const { semanticAnalyze } = require('../api/ai-router.js');
+      if (endpoint === '/api/ai/ask' || endpoint === '/api/ai/chat' || endpoint === '/api/ai/qa') {
+        return semanticAnalyze(payload.documentText || '', payload.pages || [], 'ask', payload.question || '');
+      }
+      if (endpoint === '/api/ai/summarize') {
+        return semanticAnalyze(payload.documentText || '', payload.pages || [], 'summarize');
+      }
+      if (endpoint === '/api/ai/contract-analysis') {
+        return semanticAnalyze(payload.documentText || '', payload.pages || [], 'contract');
+      }
+      if (endpoint === '/api/ai/extract') {
+        return semanticAnalyze(payload.documentText || '', payload.pages || [], 'extract');
+      }
+      if (endpoint === '/api/ai/insights') {
+        return semanticAnalyze(payload.documentText || '', payload.pages || [], 'insights');
+      }
+    } catch (e) {}
+  }
+
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

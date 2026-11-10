@@ -223,7 +223,7 @@ async function handleAiRequest(req, res, pathName, body) {
   const apiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
 
   try {
-    if (pathName === '/api/ai/ask') {
+    if (pathName === '/api/ai/ask' || pathName === '/api/ai/chat' || pathName === '/api/ai/qa') {
       const { documentText, pages, question } = body;
       if (!documentText && (!pages || pages.length === 0)) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -264,6 +264,45 @@ Question: ${question || 'Summarize this document'}`;
           }
         } catch (apiErr) {
           console.warn('Gemini API call failed, falling back to local semantic analyzer:', apiErr.message);
+        }
+      } else if (apiKey && process.env.OPENAI_API_KEY) {
+        try {
+          const prompt = `You are PDFme's AI Document Assistant. Answer the user question based strictly on this document.
+Where applicable, mention which page or section contains the information.
+
+Document:
+${(documentText || '').slice(0, 20000)}
+
+Question: ${question || 'Summarize this document'}`;
+
+          const openAiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              model: 'gpt-4o-mini',
+              messages: [{ role: 'user', content: prompt }],
+              temperature: 0.2
+            })
+          });
+
+          if (openAiRes.ok) {
+            const data = await openAiRes.json();
+            const textResponse = data.choices?.[0]?.message?.content;
+            if (textResponse) {
+              const semantic = semanticAnalyze(documentText || '', pages, 'ask', question);
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                answer: textResponse,
+                citations: semantic.citations
+              }));
+              return;
+            }
+          }
+        } catch (openAiErr) {
+          console.warn('OpenAI API call failed, falling back to local semantic analyzer:', openAiErr.message);
         }
       }
 
