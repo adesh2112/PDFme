@@ -23,8 +23,8 @@ function verifyEditorGuard() {
   }
 
   // 2. Check initEdit in app.js
-  const appJsCurrent = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
-  const appJsBackup = fs.readFileSync(path.join(backupDir, 'app.js'), 'utf8');
+  const appJsCurrent = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8').replace(/\r\n/g, '\n');
+  const appJsBackup = fs.readFileSync(path.join(backupDir, 'app.js'), 'utf8').replace(/\r\n/g, '\n');
 
   const startIndexCurrent = appJsCurrent.indexOf('(function initEdit() {');
   const endIndexCurrent = appJsCurrent.indexOf('setupFormatToolbarListeners();\n\n})();');
@@ -32,24 +32,8 @@ function verifyEditorGuard() {
   const endIndexBackup = appJsBackup.indexOf('setupFormatToolbarListeners();\n\n})();');
 
   if (startIndexCurrent === -1 || endIndexCurrent === -1 || startIndexBackup === -1 || endIndexBackup === -1) {
-    // Try with \r\n
-    const endAltCurrent = appJsCurrent.indexOf('setupFormatToolbarListeners();\r\n\r\n})();');
-    const endAltBackup = appJsBackup.indexOf('setupFormatToolbarListeners();\r\n\r\n})();');
-    if (startIndexCurrent === -1 || endAltCurrent === -1) {
-      console.error('FAIL: Could not locate initEdit block in app.js');
-      allPass = false;
-    } else {
-      const currentBlock = appJsCurrent.slice(startIndexCurrent, endAltCurrent + 36);
-      const backupBlock = appJsBackup.slice(startIndexBackup, endAltBackup + 36);
-      const currentHash = getHash(currentBlock);
-      const backupHash = getHash(backupBlock);
-      if (currentHash === backupHash) {
-        console.log(`PASS: initEdit block in app.js is 100% byte-for-byte identical to baseline reference (${currentBlock.length} bytes, SHA-256: ${currentHash.slice(0, 10)}...).`);
-      } else {
-        console.error('FAIL: initEdit block in app.js has been modified! Hash mismatch.');
-        allPass = false;
-      }
-    }
+    console.error('FAIL: Could not locate initEdit block in app.js');
+    allPass = false;
   } else {
     const currentBlock = appJsCurrent.slice(startIndexCurrent, endIndexCurrent + 34);
     const backupBlock = appJsBackup.slice(startIndexBackup, endIndexBackup + 34);
