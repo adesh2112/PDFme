@@ -47,3 +47,4 @@ for (const file of requiredFiles) {
 }
 console.log('[PASS] Essential published assets verified.');
 console.log('=== BUILD VERIFICATION SUCCEEDED ===');
+

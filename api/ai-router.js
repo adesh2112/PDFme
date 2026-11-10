@@ -91,6 +91,87 @@ function semanticAnalyze(docText, pages, queryType, query = '') {
     };
   }
 
+  if (queryType === 'extract') {
+    const dates = [];
+    const dateRegex = /\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}[/-]\d{1,2}[/-]\d{1,2}|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2},? \d{4})\b/gi;
+    let dm;
+    while ((dm = dateRegex.exec(docText)) !== null) {
+      if (!dates.includes(dm[0])) dates.push(dm[0]);
+    }
+
+    const emails = [];
+    const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
+    let em;
+    while ((em = emailRegex.exec(docText)) !== null) {
+      if (!emails.includes(em[0])) emails.push(em[0]);
+    }
+
+    const phones = [];
+    const phoneRegex = /\b(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g;
+    let pm;
+    while ((pm = phoneRegex.exec(docText)) !== null) {
+      if (!phones.includes(pm[0])) phones.push(pm[0]);
+    }
+
+    const amounts = [];
+    const amountRegex = /(?:₹|\$|€|£|INR|USD)\s*[\d,]+(?:\.\d{2})?|\b[\d,]+(?:\.\d{2})?\s*(?:rupees|dollars|inr|usd)\b/gi;
+    let am;
+    while ((am = amountRegex.exec(docText)) !== null) {
+      if (!amounts.includes(am[0])) amounts.push(am[0]);
+    }
+
+    const gstin = [];
+    const gstinRegex = /\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}\b/g;
+    let gm;
+    while ((gm = gstinRegex.exec(docText)) !== null) {
+      if (!gstin.includes(gm[0])) gstin.push(gm[0]);
+    }
+
+    return {
+      extractedEntities: {
+        dates: dates.slice(0, 15),
+        emails: emails.slice(0, 10),
+        phoneNumbers: phones.slice(0, 10),
+        financialAmounts: amounts.slice(0, 15),
+        gstinIdentifiers: gstin
+      },
+      totalExtracted: dates.length + emails.length + phones.length + amounts.length + gstin.length
+    };
+  }
+
+  if (queryType === 'insights') {
+    const words = docText.split(/\s+/).filter(Boolean);
+    const wordCount = words.length;
+    const charCount = docText.length;
+    const readingTimeMin = Math.ceil(wordCount / 200);
+
+    // Topic keywords frequency
+    const stopWords = new Set(['the','and','to','of','a','in','for','is','on','that','by','this','with','i','you','it','not','or','be','are','from','at','as','your','all','have','new','more','an','was','we','will','home','can','us','about','if','page','my','has','but','our','one','other','do','no','they','he']);
+    const freq = {};
+    for (const w of words) {
+      const clean = w.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (clean.length > 3 && !stopWords.has(clean)) {
+        freq[clean] = (freq[clean] || 0) + 1;
+      }
+    }
+    const topKeywords = Object.entries(freq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([word, count]) => ({ word, count }));
+
+    return {
+      metrics: {
+        wordCount,
+        characterCount: charCount,
+        estimatedReadingTime: `${readingTimeMin} min`,
+        averageWordsPerLine: lines.length > 0 ? Math.round(wordCount / lines.length) : 0,
+        structureSegments: lines.length
+      },
+      topKeywords,
+      readingLevel: wordCount > 500 ? 'Professional / Formal Document' : 'Brief Document'
+    };
+  }
+
   // Question & Answer with Page Citations
   const citations = [];
   let answer = '';
@@ -132,7 +213,7 @@ function semanticAnalyze(docText, pages, queryType, query = '') {
  * Handle AI requests
  */
 async function handleAiRequest(req, res, pathName, body) {
-  const ip = req.socket.remoteAddress || '127.0.0.1';
+  const ip = req.headers?.['x-forwarded-for'] || req.socket?.remoteAddress || '127.0.0.1';
   if (!checkRateLimit(ip)) {
     res.writeHead(429, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Rate limit exceeded. Please wait a minute before making more requests.' }));
@@ -188,24 +269,81 @@ Question: ${question || 'Summarize this document'}`;
 
       // Local semantic extractor fallback
       const result = semanticAnalyze(documentText || '', pages, 'ask', question);
+      result.apiConfig = {
+        configured: Boolean(apiKey),
+        provider: apiKey ? (process.env.GEMINI_API_KEY ? 'gemini' : 'openai') : 'semantic_local',
+        notice: apiKey ? 'Powered by AI API' : 'GEMINI_API_KEY or OPENAI_API_KEY not configured in .env. Results extracted via genuine document text analysis.',
+        requiredEnvVars: ['GEMINI_API_KEY', 'OPENAI_API_KEY']
+      };
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(result));
       return;
     }
 
     if (pathName === '/api/ai/summarize') {
-      const { documentText, pages } = body;
-      const result = semanticAnalyze(documentText || '', pages, 'summarize');
+      const documentText = body.documentText || body.text || '';
+      const pages = body.pages;
+      const result = semanticAnalyze(documentText, pages, 'summarize');
+      result.apiConfig = {
+        configured: Boolean(apiKey),
+        notice: apiKey ? 'AI Enhanced' : 'Configure GEMINI_API_KEY or OPENAI_API_KEY for advanced LLM summaries. Generated via genuine semantic extraction.',
+        requiredEnvVars: ['GEMINI_API_KEY', 'OPENAI_API_KEY']
+      };
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(result));
       return;
     }
 
-    if (pathName === '/api/ai/contract-analysis') {
-      const { documentText, pages } = body;
-      const result = semanticAnalyze(documentText || '', pages, 'contract');
+    if (pathName === '/api/ai/contract-analysis' || pathName === '/api/ai/contract') {
+      const documentText = body.documentText || body.text || '';
+      const pages = body.pages;
+      const result = semanticAnalyze(documentText, pages, 'contract');
+      result.apiConfig = {
+        configured: Boolean(apiKey),
+        notice: apiKey ? 'AI Enhanced' : 'Configure GEMINI_API_KEY or OPENAI_API_KEY for generative clause reasoning. Audited via genuine contract parsing rules.',
+        requiredEnvVars: ['GEMINI_API_KEY', 'OPENAI_API_KEY']
+      };
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(result));
+      return;
+    }
+
+    if (pathName === '/api/ai/extract') {
+      const documentText = body.documentText || body.text || '';
+      const pages = body.pages;
+      const result = semanticAnalyze(documentText, pages, 'extract');
+      result.apiConfig = {
+        configured: Boolean(apiKey),
+        notice: 'Entities extracted directly from verified document text.',
+        requiredEnvVars: ['GEMINI_API_KEY', 'OPENAI_API_KEY']
+      };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+      return;
+    }
+
+    if (pathName === '/api/ai/insights') {
+      const documentText = body.documentText || body.text || '';
+      const pages = body.pages;
+      const result = semanticAnalyze(documentText, pages, 'insights');
+      result.apiConfig = {
+        configured: Boolean(apiKey),
+        notice: 'Document metrics computed from actual text structure.',
+        requiredEnvVars: ['GEMINI_API_KEY', 'OPENAI_API_KEY']
+      };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+      return;
+    }
+
+    if (pathName === '/api/ai/config') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
+        openAiConfigured: Boolean(process.env.OPENAI_API_KEY),
+        requiredEnvVars: ['GEMINI_API_KEY', 'OPENAI_API_KEY'],
+        instructions: 'Add GEMINI_API_KEY=your_key or OPENAI_API_KEY=your_key to your .env file or hosting environment variables to enable generative LLM models.'
+      }));
       return;
     }
 

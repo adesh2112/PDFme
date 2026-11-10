@@ -15,18 +15,47 @@
   let currentUser = null;
   let authRedirectTarget = null;
   let activeWorkspaceTab = 'docs';
+  let currentWorkspaceFolderId = null;
+  let lastWorkspaceData = null;
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function escapeAttr(str) {
+    if (!str) return '';
+    return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  }
 
   // --- 1. Theme Management (Warm Yellow Corporate Light Mode vs High-Contrast Dark) ---
   function updateThemeUI(isLight) {
     document.querySelectorAll('.theme-toggle-btn, .mobile-theme-btn').forEach(btn => {
       if (isLight) {
-        btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><span class="btn-label">Dark</span>`;
+        // LIGHT MODE: Clearly visible warm golden sun icon, white/cream circular background
+        btn.innerHTML = `
+          <svg class="theme-icon sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4.5" fill="#FBBF24" stroke="#D97706"/>
+            <path d="M12 1.5v2.5"/>
+            <path d="M12 20v2.5"/>
+            <path d="m4.57 4.57 1.77 1.77"/>
+            <path d="m17.66 17.66 1.77 1.77"/>
+            <path d="M1.5 12h2.5"/>
+            <path d="M20 12h2.5"/>
+            <path d="m6.34 17.66-1.77 1.77"/>
+            <path d="m19.43 4.57-1.77 1.77"/>
+          </svg>
+        `;
         btn.setAttribute('title', 'Switch to Dark Mode');
-        btn.setAttribute('aria-label', 'Dark Mode');
+        btn.setAttribute('aria-label', 'Switch to Dark Mode');
       } else {
-        btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg><span class="btn-label">Light</span>`;
+        // DARK MODE: Clearly visible crescent moon icon, dark circular background, subtle glow
+        btn.innerHTML = `
+          <svg class="theme-icon moon-icon" width="18" height="18" viewBox="0 0 24 24" fill="#FCD34D" stroke="#FBBF24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 5px rgba(252,211,77,0.55));" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        `;
         btn.setAttribute('title', 'Switch to Light Mode');
-        btn.setAttribute('aria-label', 'Light Mode');
+        btn.setAttribute('aria-label', 'Switch to Light Mode');
       }
     });
   }
@@ -748,6 +777,7 @@
       });
       if (!res.ok) throw new Error('Sync failed');
       const data = await res.json();
+      lastWorkspaceData = data;
 
       currentUser = data.user;
       updateAuthUI(currentUser);
@@ -828,27 +858,19 @@
     window.refreshWorkspaceData();
   };
 
-  function renderWorkspaceTabContent(data) {
-    const panel = document.getElementById('workspace-tab-panel');
-    if (!panel) return;
-    const docs = data.documents || [];
-
-    if (activeWorkspaceTab === 'docs' || activeWorkspaceTab === 'favorites') {
-      const displayDocs = activeWorkspaceTab === 'favorites' ? docs.filter(d => d.isFavorite) : docs;
-      if (displayDocs.length === 0) {
-        panel.innerHTML = `
-          <div style="text-align:center;padding:48px 20px;color:var(--text-muted);border:1px dashed var(--border);border-radius:12px;">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;opacity:0.6;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            <p style="font-size:0.95rem;font-weight:600;">No documents in this view yet.</p>
-            <p style="font-size:0.8rem;margin-top:4px;">Upload PDFs or edit documents to save them permanently in your cloud account.</p>
-          </div>
-        `;
-        return;
-      }
-
-      panel.innerHTML = `
-        <div class="workspace-doc-grid">
-          ${displayDocs.map(doc => `
+  function renderDocsGrid(displayDocs, folders) {
+    if (!displayDocs || displayDocs.length === 0) {
+      return `
+        <div style="text-align:center;padding:36px 20px;color:var(--text-muted);border:1px dashed var(--border);border-radius:12px;">
+          <p style="font-size:0.95rem;font-weight:600;">No documents in this view yet.</p>
+        </div>
+      `;
+    }
+    return `
+      <div class="workspace-doc-grid">
+        ${displayDocs.map(doc => {
+          const folderObj = (folders || []).find(f => f.id === doc.folderId);
+          return `
             <div class="workspace-doc-card">
               <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
                 <div style="display:flex;align-items:center;gap:10px;min-width:0;">
@@ -856,22 +878,141 @@
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                   </div>
                   <div style="min-width:0;">
-                    <h4 style="font-size:0.9rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${doc.title}">${doc.title}</h4>
+                    <h4 style="font-size:0.9rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0 0 2px;" title="${escapeAttr(doc.title)}">${escapeHtml(doc.title)}</h4>
                     <span style="font-size:0.75rem;color:var(--text-muted);">${(doc.size ? (doc.size / 1024).toFixed(1) + ' KB' : 'PDF')} · v${doc.version || 1}</span>
+                    ${folderObj ? `<span style="font-size:0.7rem;padding:1px 6px;border-radius:4px;background:rgba(244,185,66,0.15);color:var(--saas-accent);display:inline-block;margin-left:4px;">📂 ${escapeHtml(folderObj.name)}</span>` : ''}
                   </div>
                 </div>
                 <button onclick="toggleDocFavorite('${doc.id}', ${!doc.isFavorite})" style="background:none;border:none;cursor:pointer;color:${doc.isFavorite ? '#F59E0B' : 'var(--text-muted)'};font-size:1.1rem;">
                   ${doc.isFavorite ? '★' : '☆'}
                 </button>
               </div>
-              <div class="doc-card-actions">
+              <div class="doc-card-actions" style="display:flex;gap:4px;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
                 <button class="btn btn-ghost btn-sm" onclick="switchCategory('edit')" style="font-size:0.75rem;padding:4px 8px;">Edit</button>
                 <button class="btn btn-ghost btn-sm" onclick="downloadCloudDoc('${doc.id}')" style="font-size:0.75rem;padding:4px 8px;">Download</button>
+                <button class="btn btn-ghost btn-sm" onclick="promptMoveDocument('${doc.id}', '${escapeAttr(doc.title)}')" style="font-size:0.75rem;padding:4px 8px;">Move</button>
                 <button class="btn btn-ghost btn-sm" onclick="deleteCloudDoc('${doc.id}')" style="font-size:0.75rem;padding:4px 8px;color:var(--danger);margin-left:auto;">Delete</button>
               </div>
             </div>
-          `).join('')}
-        </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  function renderWorkspaceTabContent(data) {
+    const panel = document.getElementById('workspace-tab-panel');
+    if (!panel) return;
+    const docs = data.documents || [];
+    const folders = data.folders || [];
+
+    if (activeWorkspaceTab === 'docs' || activeWorkspaceTab === 'favorites') {
+      const currentFolder = currentWorkspaceFolderId
+        ? folders.find(f => f.id === currentWorkspaceFolderId)
+        : null;
+
+      // Inside a specific folder view:
+      if (activeWorkspaceTab === 'docs' && currentFolder) {
+        const folderDocs = docs.filter(d => d.folderId === currentWorkspaceFolderId);
+        panel.innerHTML = `
+          <div class="workspace-breadcrumb-bar" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;padding:12px 16px;background:var(--bg-elevated);border-radius:10px;border:1px solid var(--border);flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:8px;font-size:0.9rem;">
+              <button class="btn btn-ghost btn-sm" onclick="openWorkspaceFolder(null)" style="padding:4px 10px;font-weight:600;display:inline-flex;align-items:center;gap:5px;">
+                <span>📁</span> All Folders
+              </button>
+              <span style="color:var(--text-muted);">&gt;</span>
+              <strong style="color:var(--text);font-size:1rem;display:inline-flex;align-items:center;gap:5px;">
+                <span>📂</span> ${escapeHtml(currentFolder.name)}
+              </strong>
+              <span style="font-size:0.8rem;color:var(--text-muted);">(${folderDocs.length} files)</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <label class="btn btn-primary btn-sm" style="cursor:pointer;padding:6px 14px;border-radius:6px;font-size:0.8rem;">
+                + Upload to Folder
+                <input type="file" accept=".pdf" style="display:none;" onchange="handleWorkspaceFileUpload(event, '${currentFolder.id}')">
+              </label>
+              <button class="btn btn-ghost btn-sm" onclick="promptRenameFolder('${currentFolder.id}', '${escapeAttr(currentFolder.name)}')" style="font-size:0.8rem;border:1px solid var(--border);">Rename</button>
+              <button class="btn btn-ghost btn-sm" onclick="confirmDeleteFolder('${currentFolder.id}', '${escapeAttr(currentFolder.name)}')" style="font-size:0.8rem;color:var(--danger);border:1px solid var(--border);">Delete</button>
+            </div>
+          </div>
+
+          ${folderDocs.length === 0 ? `
+            <div style="text-align:center;padding:48px 20px;color:var(--text-muted);border:1px dashed var(--border);border-radius:12px;">
+              <p style="font-size:1.1rem;font-weight:700;margin-bottom:6px;">This folder is empty.</p>
+              <p style="font-size:0.85rem;margin-bottom:16px;">Upload a PDF to store it directly inside "${escapeHtml(currentFolder.name)}".</p>
+              <label class="btn btn-primary btn-sm" style="cursor:pointer;padding:8px 18px;">
+                + Upload PDF
+                <input type="file" accept=".pdf" style="display:none;" onchange="handleWorkspaceFileUpload(event, '${currentFolder.id}')">
+              </label>
+            </div>
+          ` : renderDocsGrid(folderDocs, folders)}
+        `;
+        return;
+      }
+
+      // Root view:
+      const displayDocs = activeWorkspaceTab === 'favorites'
+        ? docs.filter(d => d.isFavorite)
+        : docs;
+
+      panel.innerHTML = `
+        ${activeWorkspaceTab === 'docs' ? `
+          <div style="margin-bottom:28px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+              <h4 style="font-size:1rem;font-weight:700;display:flex;align-items:center;gap:6px;margin:0;">
+                <span>📁</span> Folders (${folders.length})
+              </h4>
+              <button class="btn btn-ghost btn-sm" onclick="promptCreateFolder()" style="font-size:0.8rem;padding:4px 12px;border:1px solid var(--border);">
+                + New Folder
+              </button>
+            </div>
+
+            ${folders.length === 0 ? `
+              <div style="padding:20px;background:var(--bg-elevated);border:1px dashed var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                <div>
+                  <p style="font-size:0.9rem;font-weight:600;margin:0 0 2px;">No folders created yet</p>
+                  <p style="font-size:0.8rem;color:var(--text-muted);margin:0;">Create folders to organize your invoices, contracts, and confidential documents.</p>
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="promptCreateFolder()" style="border:1px solid var(--border);white-space:nowrap;">+ Create First Folder</button>
+              </div>
+            ` : `
+              <div class="workspace-folders-grid">
+                ${folders.map(f => {
+                  const count = docs.filter(d => d.folderId === f.id).length;
+                  return `
+                    <div class="workspace-folder-card" onclick="openWorkspaceFolder('${f.id}')">
+                      <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                        <span style="font-size:1.6rem;line-height:1;">📁</span>
+                        <div style="min-width:0;">
+                          <h4 style="font-size:0.9rem;font-weight:700;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeAttr(f.name)}">${escapeHtml(f.name)}</h4>
+                          <span style="font-size:0.75rem;color:var(--text-muted);">${count} ${count === 1 ? 'file' : 'files'}</span>
+                        </div>
+                      </div>
+                      <div style="display:flex;gap:4px;flex-shrink:0;" onclick="event.stopPropagation()">
+                        <button class="btn btn-ghost btn-sm" title="Rename Folder" onclick="promptRenameFolder('${f.id}', '${escapeAttr(f.name)}')" style="padding:3px 6px;font-size:0.75rem;">✎</button>
+                        <button class="btn btn-ghost btn-sm" title="Delete Folder" onclick="confirmDeleteFolder('${f.id}', '${escapeAttr(f.name)}')" style="padding:3px 6px;font-size:0.75rem;color:var(--danger);">✕</button>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `}
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <h4 style="font-size:1rem;font-weight:700;margin:0;">
+              📄 Documents (${displayDocs.length})
+            </h4>
+          </div>
+        ` : ''}
+
+        ${displayDocs.length === 0 ? `
+          <div style="text-align:center;padding:48px 20px;color:var(--text-muted);border:1px dashed var(--border);border-radius:12px;">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;opacity:0.6;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <p style="font-size:0.95rem;font-weight:600;">No documents in this view yet.</p>
+            <p style="font-size:0.8rem;margin-top:4px;">Upload PDFs or edit documents to save them permanently in your cloud account.</p>
+          </div>
+        ` : renderDocsGrid(displayDocs, folders)}
       `;
     } else if (activeWorkspaceTab === 'subscription') {
       const org = data.organization || {};
@@ -946,7 +1087,173 @@
     }
   }
 
-  window.handleWorkspaceFileUpload = async function(e) {
+  // --- Folder Management & Modals ---
+  window.promptCreateFolder = function() {
+    const modal = document.getElementById('folder-modal-backdrop');
+    if (!modal) return;
+    const titleEl = document.getElementById('folder-modal-title');
+    if (titleEl) titleEl.textContent = 'Create New Folder';
+    const idInp = document.getElementById('folder-id-input');
+    if (idInp) idInp.value = '';
+    const nameInp = document.getElementById('folder-name-input');
+    if (nameInp) nameInp.value = '';
+    const err = document.getElementById('folder-modal-error');
+    if (err) err.style.display = 'none';
+    modal.classList.add('active');
+    setTimeout(() => { if (nameInp) nameInp.focus(); }, 60);
+  };
+
+  window.promptRenameFolder = function(folderId, currentName) {
+    const modal = document.getElementById('folder-modal-backdrop');
+    if (!modal) return;
+    const titleEl = document.getElementById('folder-modal-title');
+    if (titleEl) titleEl.textContent = 'Rename Folder';
+    const idInp = document.getElementById('folder-id-input');
+    if (idInp) idInp.value = folderId;
+    const nameInp = document.getElementById('folder-name-input');
+    if (nameInp) nameInp.value = currentName || '';
+    const err = document.getElementById('folder-modal-error');
+    if (err) err.style.display = 'none';
+    modal.classList.add('active');
+    setTimeout(() => { if (nameInp) nameInp.focus(); }, 60);
+  };
+
+  window.closeFolderModal = function() {
+    const modal = document.getElementById('folder-modal-backdrop');
+    if (modal) modal.classList.remove('active');
+  };
+
+  window.handleFolderFormSubmit = async function(e) {
+    e.preventDefault();
+    const token = localStorage.getItem('pdfme-token');
+    if (!token) {
+      showToast('Please sign in to manage folders.', 'warning');
+      return;
+    }
+    const name = document.getElementById('folder-name-input')?.value?.trim();
+    const folderId = document.getElementById('folder-id-input')?.value?.trim();
+    const errBox = document.getElementById('folder-modal-error');
+
+    if (!name) {
+      if (errBox) {
+        errBox.textContent = 'Please enter a folder name.';
+        errBox.style.display = 'block';
+      }
+      return;
+    }
+
+    try {
+      const endpoint = folderId ? '/api/workspace/folders/rename' : '/api/workspace/folders';
+      const body = folderId ? { folderId, name } : { name };
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save folder');
+
+      window.closeFolderModal();
+      showToast(folderId ? '✓ Folder renamed successfully' : '✓ Folder created successfully', 'success');
+      window.refreshWorkspaceData();
+    } catch (err) {
+      if (errBox) {
+        errBox.textContent = err.message || 'Operation failed';
+        errBox.style.display = 'block';
+      }
+    }
+  };
+
+  window.confirmDeleteFolder = async function(folderId, folderName) {
+    if (!confirm(`Are you sure you want to delete folder "${folderName}"? Documents inside will remain safe in your workspace.`)) return;
+    const token = localStorage.getItem('pdfme-token');
+    if (!token) return;
+
+    try {
+      const res = await fetch('/api/workspace/folders/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ folderId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete folder');
+
+      if (currentWorkspaceFolderId === folderId) {
+        currentWorkspaceFolderId = null;
+      }
+      showToast('✓ Folder deleted successfully', 'info');
+      window.refreshWorkspaceData();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  window.openWorkspaceFolder = function(folderId) {
+    currentWorkspaceFolderId = folderId;
+    activeWorkspaceTab = 'docs';
+    window.refreshWorkspaceData();
+  };
+
+  // --- Document Moving ---
+  window.promptMoveDocument = function(docId, docTitle) {
+    const modal = document.getElementById('move-doc-modal-backdrop');
+    if (!modal) return;
+    const nameEl = document.getElementById('move-doc-name');
+    if (nameEl) nameEl.textContent = `Move "${docTitle}" to:`;
+    const list = document.getElementById('move-folder-list');
+    const folders = (lastWorkspaceData && lastWorkspaceData.folders) || [];
+
+    if (list) {
+      list.innerHTML = `
+        <button class="btn btn-ghost" onclick="submitMoveDocument('${docId}', null)" style="justify-content:flex-start;padding:10px 14px;border:1px solid var(--border);border-radius:8px;text-align:left;display:flex;align-items:center;gap:8px;">
+          <span>📁</span> Main Workspace (Root / No Folder)
+        </button>
+        ${folders.map(f => `
+          <button class="btn btn-ghost" onclick="submitMoveDocument('${docId}', '${f.id}')" style="justify-content:flex-start;padding:10px 14px;border:1px solid var(--border);border-radius:8px;text-align:left;display:flex;align-items:center;gap:8px;">
+            <span>📂</span> ${escapeHtml(f.name)}
+          </button>
+        `).join('')}
+      `;
+    }
+    modal.classList.add('active');
+  };
+
+  window.closeMoveDocModal = function() {
+    const modal = document.getElementById('move-doc-modal-backdrop');
+    if (modal) modal.classList.remove('active');
+  };
+
+  window.submitMoveDocument = async function(docId, targetFolderId) {
+    const token = localStorage.getItem('pdfme-token');
+    if (!token) return;
+
+    try {
+      const res = await fetch('/api/workspace/documents/move', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ docId, folderId: targetFolderId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to move document');
+
+      window.closeMoveDocModal();
+      showToast('✓ Document moved successfully', 'success');
+      window.refreshWorkspaceData();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  window.handleWorkspaceFileUpload = async function(e, specificFolderId) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
 
@@ -955,6 +1262,7 @@
     reader.onload = async () => {
       try {
         const token = localStorage.getItem('pdfme-token');
+        const targetFolder = specificFolderId || currentWorkspaceFolderId || null;
         const res = await fetch('/api/files/upload', {
           method: 'POST',
           headers: {
@@ -964,7 +1272,8 @@
           body: JSON.stringify({
             title: file.name,
             dataBase64: reader.result,
-            size: file.size
+            size: file.size,
+            folderId: targetFolder
           })
         });
         const data = await res.json();

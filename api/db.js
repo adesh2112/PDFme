@@ -181,6 +181,33 @@ async function initPgSchema() {
       if (orgsRes.rows.length > 0) {
         db.organizations = orgsRes.rows.map(mapOrgRow);
       }
+      const foldersRes = await client.query('SELECT * FROM folders');
+      if (foldersRes.rows.length > 0) {
+        db.folders = foldersRes.rows.map(r => ({
+          id: r.id,
+          orgId: r.org_id,
+          userId: r.user_id,
+          name: r.name,
+          createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString()
+        }));
+      }
+      const docsRes = await client.query('SELECT * FROM documents');
+      if (docsRes.rows.length > 0) {
+        db.documents = docsRes.rows.map(r => ({
+          id: r.id,
+          orgId: r.org_id,
+          userId: r.user_id,
+          folderId: r.folder_id || null,
+          title: r.title,
+          size: Number(r.size) || 0,
+          status: r.status || 'DRAFT',
+          filePath: r.file_path,
+          hash: r.hash,
+          isFavorite: Boolean(r.is_favorite),
+          createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+          updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString()
+        }));
+      }
     } finally {
       client.release();
     }
@@ -356,6 +383,165 @@ async function updateUser(id, updates) {
   return user;
 }
 
+// Folder database operations
+async function createFolderInDb(folder) {
+  if (usePostgres && pgPool) {
+    try {
+      await pgPool.query(`
+        INSERT INTO folders (id, org_id, user_id, name, created_at)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (id) DO UPDATE SET name = $4
+      `, [folder.id, folder.orgId, folder.userId, folder.name, folder.createdAt || new Date().toISOString()]);
+    } catch (err) {
+      console.warn('[DB] PostgreSQL createFolder error:', err.message);
+    }
+  }
+  if (!Array.isArray(db.folders)) db.folders = [];
+  const idx = db.folders.findIndex(f => f.id === folder.id);
+  if (idx >= 0) db.folders[idx] = folder;
+  else db.folders.push(folder);
+  saveLocalDb();
+  return folder;
+}
+
+async function updateFolderInDb(folderId, updates, authUserId, authOrgId) {
+  if (usePostgres && pgPool) {
+    try {
+      await pgPool.query(`
+        UPDATE folders SET name = $1
+        WHERE id = $2 AND (user_id = $3 OR org_id = $4)
+      `, [updates.name, folderId, authUserId, authOrgId]);
+    } catch (err) {
+      console.warn('[DB] PostgreSQL updateFolder error:', err.message);
+    }
+  }
+  const folder = (db.folders || []).find(f => f.id === folderId && (f.userId === authUserId || f.orgId === authOrgId));
+  if (folder) {
+    if (updates.name) folder.name = updates.name.trim();
+    saveLocalDb();
+  }
+  return folder;
+}
+
+async function deleteFolderInDb(folderId, authUserId, authOrgId) {
+  if (usePostgres && pgPool) {
+    try {
+      // Detach any documents from this folder
+      await pgPool.query(`
+        UPDATE documents SET folder_id = NULL
+        WHERE folder_id = $1 AND (user_id = $2 OR org_id = $3)
+      `, [folderId, authUserId, authOrgId]);
+
+      await pgPool.query(`
+        DELETE FROM folders
+        WHERE id = $1 AND (user_id = $2 OR org_id = $3)
+      `, [folderId, authUserId, authOrgId]);
+    } catch (err) {
+      console.warn('[DB] PostgreSQL deleteFolder error:', err.message);
+    }
+  }
+  // Detach documents in memory
+  (db.documents || []).forEach(d => {
+    if (d.folderId === folderId && (d.userId === authUserId || d.orgId === authOrgId)) {
+      d.folderId = null;
+    }
+  });
+  const idx = (db.folders || []).findIndex(f => f.id === folderId && (f.userId === authUserId || f.orgId === authOrgId));
+  let removed = null;
+  if (idx >= 0) {
+    removed = db.folders.splice(idx, 1)[0];
+    saveLocalDb();
+  }
+  return removed;
+}
+
+// Document database operations
+async function saveDocumentInDb(doc) {
+  if (usePostgres && pgPool) {
+    try {
+      await pgPool.query(`
+        INSERT INTO documents (id, org_id, user_id, folder_id, title, size, status, file_path, hash, is_favorite, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        ON CONFLICT (id) DO UPDATE SET
+          title = $5,
+          folder_id = $4,
+          size = $6,
+          status = $7,
+          is_favorite = $10,
+          updated_at = $12
+      `, [
+        doc.id,
+        doc.orgId,
+        doc.userId,
+        doc.folderId || null,
+        doc.title,
+        doc.size || 0,
+        doc.status || 'DRAFT',
+        doc.filePath || null,
+        doc.hash || null,
+        Boolean(doc.isFavorite),
+        doc.createdAt || new Date().toISOString(),
+        doc.updatedAt || new Date().toISOString()
+      ]);
+    } catch (err) {
+      console.warn('[DB] PostgreSQL saveDocument error:', err.message);
+    }
+  }
+  if (!Array.isArray(db.documents)) db.documents = [];
+  const idx = db.documents.findIndex(d => d.id === doc.id);
+  if (idx >= 0) db.documents[idx] = doc;
+  else db.documents.unshift(doc);
+  saveLocalDb();
+  return doc;
+}
+
+async function updateDocumentInDb(docId, updates, authUserId, authOrgId) {
+  const doc = (db.documents || []).find(d => d.id === docId && (d.userId === authUserId || d.orgId === authOrgId));
+  if (!doc) return null;
+
+  if (updates.title !== undefined) doc.title = updates.title;
+  if (updates.folderId !== undefined) doc.folderId = updates.folderId || null;
+  if (updates.isFavorite !== undefined) doc.isFavorite = Boolean(updates.isFavorite);
+  if (updates.status !== undefined) doc.status = updates.status;
+  doc.updatedAt = new Date().toISOString();
+
+  if (usePostgres && pgPool) {
+    try {
+      await pgPool.query(`
+        UPDATE documents SET
+          title = $1,
+          folder_id = $2,
+          is_favorite = $3,
+          status = $4,
+          updated_at = $5
+        WHERE id = $6 AND (user_id = $7 OR org_id = $8)
+      `, [doc.title, doc.folderId, doc.isFavorite, doc.status, doc.updatedAt, docId, authUserId, authOrgId]);
+    } catch (err) {
+      console.warn('[DB] PostgreSQL updateDocument error:', err.message);
+    }
+  }
+  saveLocalDb();
+  return doc;
+}
+
+async function deleteDocumentInDb(docId, authUserId, authOrgId) {
+  const idx = (db.documents || []).findIndex(d => d.id === docId && (d.userId === authUserId || d.orgId === authOrgId));
+  if (idx < 0) return null;
+  const removed = db.documents.splice(idx, 1)[0];
+
+  if (usePostgres && pgPool) {
+    try {
+      await pgPool.query(`
+        DELETE FROM documents WHERE id = $1 AND (user_id = $2 OR org_id = $3)
+      `, [docId, authUserId, authOrgId]);
+    } catch (err) {
+      console.warn('[DB] PostgreSQL deleteDocument error:', err.message);
+    }
+  }
+  saveLocalDb();
+  return removed;
+}
+
 async function checkDatabaseHealth() {
   if (usePostgres && pgPool) {
     try {
@@ -411,6 +597,12 @@ module.exports = {
   findUserById,
   createUser,
   updateUser,
+  createFolderInDb,
+  updateFolderInDb,
+  deleteFolderInDb,
+  saveDocumentInDb,
+  updateDocumentInDb,
+  deleteDocumentInDb,
   checkDatabaseHealth,
   initPgSchema
 };

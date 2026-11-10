@@ -482,11 +482,123 @@ body:not(.light-theme) .saas-nav-link.active {
 
 .mobile-actions-group {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
+  grid-template-columns: 38px 1fr 1fr 1fr;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   max-width: 480px;
   margin: 0 auto;
+}
+
+/* ============================================================
+   CIRCULAR SUN / MOON THEME TOGGLE
+   ============================================================ */
+.theme-toggle-btn.circular-theme-toggle,
+.mobile-action-btn.mobile-theme-btn.circular-theme-toggle {
+  width: 38px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  max-width: 38px !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 38px !important;
+  flex-shrink: 0 !important;
+  cursor: pointer;
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: visible;
+}
+
+/* Light Mode Theme Toggle */
+body.light-theme .theme-toggle-btn.circular-theme-toggle,
+body.light-theme .mobile-action-btn.mobile-theme-btn.circular-theme-toggle {
+  background: #FFFFFF !important;
+  border: 1.5px solid rgba(245, 158, 11, 0.45) !important;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25), 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+  color: #D97706 !important;
+}
+
+body.light-theme .theme-toggle-btn.circular-theme-toggle:hover,
+body.light-theme .mobile-action-btn.mobile-theme-btn.circular-theme-toggle:hover {
+  background: #FFFDF5 !important;
+  border-color: #F59E0B !important;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.38) !important;
+  transform: scale(1.08) !important;
+}
+
+/* Dark Mode Theme Toggle */
+body:not(.light-theme) .theme-toggle-btn.circular-theme-toggle,
+body:not(.light-theme) .mobile-action-btn.mobile-theme-btn.circular-theme-toggle {
+  background: #151F32 !important;
+  border: 1.5px solid rgba(252, 211, 77, 0.35) !important;
+  box-shadow: 0 0 14px rgba(252, 211, 77, 0.22), inset 0 0 8px rgba(0, 0, 0, 0.45) !important;
+  color: #FCD34D !important;
+}
+
+body:not(.light-theme) .theme-toggle-btn.circular-theme-toggle:hover,
+body:not(.light-theme) .mobile-action-btn.mobile-theme-btn.circular-theme-toggle:hover {
+  background: #1A2740 !important;
+  border-color: #FCD34D !important;
+  box-shadow: 0 0 18px rgba(252, 211, 77, 0.4), inset 0 0 8px rgba(0, 0, 0, 0.45) !important;
+  transform: scale(1.08) !important;
+}
+
+/* Accessible Focus Ring */
+.theme-toggle-btn.circular-theme-toggle:focus-visible,
+.mobile-action-btn.mobile-theme-btn.circular-theme-toggle:focus-visible {
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.5) !important;
+}
+
+/* Theme Icon Transition & Animation */
+.circular-theme-toggle .theme-icon {
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.3s ease;
+  flex-shrink: 0;
+  display: block;
+}
+
+.circular-theme-toggle:hover .sun-icon,
+.circular-theme-toggle:hover .theme-icon-sun {
+  transform: rotate(30deg) scale(1.08);
+}
+
+.circular-theme-toggle:hover .moon-icon,
+.circular-theme-toggle:hover .theme-icon-moon {
+  transform: rotate(-20deg) scale(1.08);
+}
+
+/* ============================================================
+   WORKSPACE FOLDERS & BREADCRUMBS
+   ============================================================ */
+.workspace-folders-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.workspace-folder-card {
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  transition: all 0.15s ease;
+}
+
+.workspace-folder-card:hover {
+  border-color: var(--saas-accent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
 }
 
 .mobile-action-btn {

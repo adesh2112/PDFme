@@ -18,6 +18,12 @@ const {
   findUserById,
   createUser,
   updateUser,
+  createFolderInDb,
+  updateFolderInDb,
+  deleteFolderInDb,
+  saveDocumentInDb,
+  updateDocumentInDb,
+  deleteDocumentInDb,
   checkDatabaseHealth
 } = require('./db.js');
 
@@ -480,7 +486,7 @@ async function handleWorkspaceRequest(req, res, pathName, body) {
       };
 
       if (!Array.isArray(db.documents)) db.documents = [];
-      db.documents.unshift(newDoc);
+      await saveDocumentInDb(newDoc);
 
       // Create version record
       if (!Array.isArray(db.documentVersions)) db.documentVersions = [];
@@ -515,42 +521,34 @@ async function handleWorkspaceRequest(req, res, pathName, body) {
       return sendJson(404, { error: 'Document not found.' });
     }
 
-    if (title !== undefined) doc.title = title;
-    if (folderId !== undefined) doc.folderId = folderId;
-    if (isFavorite !== undefined) doc.isFavorite = Boolean(isFavorite);
-    if (status !== undefined) doc.status = status;
-    doc.updatedAt = new Date().toISOString();
-
-    saveLocalDb();
-    logActivity(authUser.orgId, authUser.id, 'DOCUMENT_UPDATED', doc.title);
+    const updated = await updateDocumentInDb(docId, { title, folderId, isFavorite, status }, authUser.id, authUser.orgId);
+    logActivity(authUser.orgId, authUser.id, 'DOCUMENT_UPDATED', (updated || doc).title);
 
     return sendJson(200, {
       status: 'SAVED',
       message: 'Document updated successfully',
-      document: doc
+      document: updated || doc
     });
   }
 
   // 10. Document Delete: POST /api/workspace/documents/delete
   if (pathName === '/api/workspace/documents/delete') {
     const { docId } = body;
-    const index = (db.documents || []).findIndex(d => d.id === docId && (d.orgId === authUser.orgId || d.userId === authUser.id));
-    if (index === -1) {
+    const removed = await deleteDocumentInDb(docId, authUser.id, authUser.orgId);
+    if (!removed) {
       return sendJson(404, { error: 'Document not found.' });
     }
 
-    const removed = db.documents.splice(index, 1)[0];
     if (removed.filePath && fs.existsSync(removed.filePath)) {
       try { fs.unlinkSync(removed.filePath); } catch (e) {}
     }
 
-    saveLocalDb();
     logActivity(authUser.orgId, authUser.id, 'DOCUMENT_DELETED', removed.title);
 
     return sendJson(200, {
       status: 'DELETED',
       message: 'Document deleted successfully',
-      docId
+      document: removed
     });
   }
 
@@ -587,8 +585,7 @@ async function handleWorkspaceRequest(req, res, pathName, body) {
       };
 
       if (!Array.isArray(db.documents)) db.documents = [];
-      db.documents.unshift(doc);
-      saveLocalDb();
+      await saveDocumentInDb(doc);
 
       logActivity(authUser.orgId, authUser.id, 'FILE_UPLOADED', doc.title);
 
@@ -629,15 +626,15 @@ async function handleWorkspaceRequest(req, res, pathName, body) {
     }
   }
 
-  // 13. Folders: GET /api/workspace/folders & POST /api/workspace/folders
-  if (pathName === '/api/workspace/folders') {
-    if (req.method === 'GET') {
+  // 13. Folders: GET /api/workspace/folders & POST /api/workspace/folders (or /api/workspace/folders/create)
+  if (pathName === '/api/workspace/folders' || pathName === '/api/workspace/folders/create') {
+    if (req.method === 'GET' && pathName === '/api/workspace/folders') {
       const folders = (db.folders || []).filter(f => f.orgId === authUser.orgId || f.userId === authUser.id);
       return sendJson(200, { folders });
     }
-    if (req.method === 'POST') {
+    if (req.method === 'POST' || pathName === '/api/workspace/folders/create') {
       const { name } = body;
-      if (!name) return sendJson(400, { error: 'Folder name is required.' });
+      if (!name || !name.trim()) return sendJson(400, { error: 'Folder name is required.' });
       const folder = {
         id: 'FLD-' + Math.random().toString(36).substring(2, 9),
         orgId: authUser.orgId,
@@ -645,11 +642,73 @@ async function handleWorkspaceRequest(req, res, pathName, body) {
         name: name.trim(),
         createdAt: new Date().toISOString()
       };
-      if (!Array.isArray(db.folders)) db.folders = [];
-      db.folders.push(folder);
-      saveLocalDb();
-      return sendJson(201, { folder });
+      await createFolderInDb(folder);
+      logActivity(authUser.orgId, authUser.id, 'FOLDER_CREATED', folder.name);
+      return sendJson(201, {
+        status: 'SAVED',
+        message: 'Folder created successfully',
+        folder
+      });
     }
+  }
+
+  // 13b. Folder Rename: POST /api/workspace/folders/rename
+  if (pathName === '/api/workspace/folders/rename') {
+    const { folderId, name } = body;
+    if (!folderId || !name || !name.trim()) {
+      return sendJson(400, { error: 'Folder ID and new folder name are required.' });
+    }
+    const updated = await updateFolderInDb(folderId, { name: name.trim() }, authUser.id, authUser.orgId);
+    if (!updated) {
+      return sendJson(404, { error: 'Folder not found or unauthorized.' });
+    }
+    logActivity(authUser.orgId, authUser.id, 'FOLDER_RENAMED', updated.name);
+    return sendJson(200, {
+      status: 'SAVED',
+      message: 'Folder renamed successfully',
+      folder: updated
+    });
+  }
+
+  // 13c. Folder Delete: POST /api/workspace/folders/delete
+  if (pathName === '/api/workspace/folders/delete') {
+    const { folderId } = body;
+    if (!folderId) {
+      return sendJson(400, { error: 'Folder ID is required.' });
+    }
+    const deleted = await deleteFolderInDb(folderId, authUser.id, authUser.orgId);
+    if (!deleted) {
+      return sendJson(404, { error: 'Folder not found or unauthorized.' });
+    }
+    logActivity(authUser.orgId, authUser.id, 'FOLDER_DELETED', deleted.name);
+    return sendJson(200, {
+      status: 'DELETED',
+      message: 'Folder deleted successfully',
+      folder: deleted
+    });
+  }
+
+  // 13d. Document Move: POST /api/workspace/documents/move
+  if (pathName === '/api/workspace/documents/move') {
+    const docId = body.docId;
+    const destFolderId = body.folderId !== undefined ? body.folderId : (body.targetFolderId !== undefined ? body.targetFolderId : null);
+    if (!docId) {
+      return sendJson(400, { error: 'Document ID is required.' });
+    }
+    if (destFolderId) {
+      const f = (db.folders || []).find(f => f.id === destFolderId && (f.userId === authUser.id || f.orgId === authUser.orgId));
+      if (!f) return sendJson(404, { error: 'Destination folder not found or unauthorized.' });
+    }
+    const updatedDoc = await updateDocumentInDb(docId, { folderId: destFolderId || null }, authUser.id, authUser.orgId);
+    if (!updatedDoc) {
+      return sendJson(404, { error: 'Document not found or unauthorized.' });
+    }
+    logActivity(authUser.orgId, authUser.id, 'DOCUMENT_MOVED', updatedDoc.title);
+    return sendJson(200, {
+      status: 'SAVED',
+      message: 'Document moved successfully',
+      document: updatedDoc
+    });
   }
 
   // 14. Document Version History

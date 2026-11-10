@@ -54,6 +54,28 @@ async function translateDocument(documentText, targetLanguage) {
   return await callAiApi('/api/ai/translate', { documentText, targetLanguage });
 }
 
+/**
+ * 6. Information Extraction
+ */
+async function extractEntities(documentText, pages) {
+  return await callAiApi('/api/ai/extract', { documentText, pages });
+}
+
+/**
+ * 7. Document Insights
+ */
+async function getDocumentInsights(documentText, pages) {
+  return await callAiApi('/api/ai/insights', { documentText, pages });
+}
+
+/**
+ * 8. Get AI Config / Env status
+ */
+async function getAiConfig() {
+  const res = await fetch('/api/ai/config');
+  return await res.json();
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     callAiApi,
@@ -61,7 +83,10 @@ if (typeof module !== 'undefined' && module.exports) {
     chatMultipleDocuments,
     summarizeDocument,
     analyzeContract,
-    translateDocument
+    translateDocument,
+    extractEntities,
+    getDocumentInsights,
+    getAiConfig
   };
 }
 if (typeof window !== 'undefined') {
@@ -71,7 +96,10 @@ if (typeof window !== 'undefined') {
     chatMultipleDocuments,
     summarizeDocument,
     analyzeContract,
-    translateDocument
+    translateDocument,
+    extractEntities,
+    getDocumentInsights,
+    getAiConfig
   };
 }
 
