@@ -1,5 +1,4 @@
-.chrome-profile-print/
-.chrome-profile-verify/
+.chrome-profile*/
 test-files/
 test.pdf
 lh-report-*.json
@@ -15,3 +14,6 @@ download-vendor.js
 .env
 .env.*
 data/
+scratch/
+backups/
+*.log

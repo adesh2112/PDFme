@@ -25,23 +25,65 @@ const MIME = {
   '.gz': 'application/gzip',
 };
 
+function isAllowedOrigin(origin) {
+  if (!origin) return true; // same-origin, curl, server-to-server
+  try {
+    const url = new URL(origin);
+    const host = url.hostname;
+    const port = url.port;
+
+    // Allow local development on ports 51002 and 8080
+    if ((host === 'localhost' || host === '127.0.0.1') && (port === '51002' || port === '8080')) {
+      return true;
+    }
+
+    // Allow all Render domains (*.onrender.com)
+    if (host.endsWith('.onrender.com')) {
+      return true;
+    }
+
+    // Allow custom production domains if configured
+    const custom = process.env.ALLOWED_ORIGINS || process.env.FRONTEND_URL;
+    if (custom) {
+      const list = custom.split(',').map(s => s.trim().toLowerCase());
+      if (list.includes(origin.toLowerCase()) || list.includes(host.toLowerCase())) {
+        return true;
+      }
+    }
+
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
 const server = http.createServer((req, res) => {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  const origin = req.headers['origin'];
+  const allowed = isAllowedOrigin(origin);
+
+  if (allowed) {
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  }
 
   if (req.method === 'OPTIONS') {
-    res.writeHead(204);
+    res.writeHead(allowed ? 204 : 403);
     res.end();
     return;
   }
 
   const parsedUrl = req.url.split('?')[0];
   const reqPath = decodeURIComponent(parsedUrl);
+  const normalizedPath = (reqPath.length > 1 && reqPath.endsWith('/')) ? reqPath.slice(0, -1) : reqPath;
 
-  // 1. API Route Handlers
-  if (reqPath.startsWith('/api/')) {
+  // 1. API & Health Route Handlers
+  if (normalizedPath.startsWith('/api/') || normalizedPath === '/health') {
     let bodyData = '';
     req.on('data', chunk => {
       bodyData += chunk;
@@ -63,19 +105,20 @@ const server = http.createServer((req, res) => {
         return;
       }
 
-      if (reqPath.startsWith('/api/ai/')) {
-        handleAiRequest(req, res, reqPath, parsed);
+      if (normalizedPath.startsWith('/api/ai/')) {
+        handleAiRequest(req, res, normalizedPath, parsed);
       } else if (
-        reqPath === '/api/create-order' ||
-        reqPath === '/api/verify-payment' ||
-        reqPath === '/api/payment-config' ||
-        reqPath.startsWith('/api/razorpay/') ||
-        reqPath.startsWith('/api/billing/') ||
-        reqPath.startsWith('/api/admin/payments')
+        normalizedPath === '/api/create-order' ||
+        normalizedPath === '/api/verify-payment' ||
+        normalizedPath === '/api/payment-config' ||
+        normalizedPath.startsWith('/api/razorpay/') ||
+        normalizedPath.startsWith('/api/subscription/') ||
+        normalizedPath.startsWith('/api/billing/') ||
+        normalizedPath.startsWith('/api/admin/payments')
       ) {
-        handleRazorpayRequest(req, res, reqPath, parsed);
+        handleRazorpayRequest(req, res, normalizedPath, parsed);
       } else {
-        handleWorkspaceRequest(req, res, reqPath, parsed);
+        handleWorkspaceRequest(req, res, normalizedPath, parsed);
       }
     });
     return;

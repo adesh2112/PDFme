@@ -8,22 +8,26 @@
 /* ── Design Tokens ── */
 :root {
   /* Colours */
-  --bg:            #070B14;
-  --bg-2:          #0D1322;
-  --surface:       rgba(13, 19, 34, 0.88);
-  --surface-hover: rgba(20, 30, 55, 0.95);
-  --border:        rgba(255, 255, 255, 0.08);
-  --border-glow:   rgba(34, 211, 238, 0.30);
-  --text:          #E8EDF5;
-  --text-muted:    #7A8AA5;
-  --accent-cyan:   #22D3EE;
-  --accent-violet: #8B5CF6;
-  --accent-magenta:#D946EF;
-  --accent-grad:   linear-gradient(135deg, #22D3EE 0%, #8B5CF6 100%);
-  --danger:        #F87171;
-  --success:       #34D399;
-  --warning:       #FBBF24;
-  --highlight-col: rgba(251, 191, 36, 0.40);
+  --bg:            #0B0F19;
+  --bg-2:          #111827;
+  --surface:       #151F32;
+  --surface-hover: #1E2B45;
+  --border:        rgba(255, 255, 255, 0.10);
+  --border-glow:   rgba(244, 185, 66, 0.35);
+  --text:          #F8FAFC;
+  --text-muted:    #94A3B8;
+  --accent-gold:   #F4B942;
+  --accent-yellow: #FFD84D;
+  --accent-secondary: #FFF3B0;
+  --accent-cream:  #FFF9E8;
+  --accent-cyan:   #F4B942;
+  --accent-violet: #FFD84D;
+  --accent-magenta:#F4B942;
+  --accent-grad:   linear-gradient(135deg, #FFD84D 0%, #F4B942 100%);
+  --danger:        #EF4444;
+  --success:       #10B981;
+  --warning:       #F59E0B;
+  --highlight-col: rgba(244, 185, 66, 0.40);
 
   /* Spacing & radius */
   --r-sm:  8px;
@@ -40,17 +44,17 @@
   --font: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
 }
 
-/* Light theme */
+/* Light theme defaults */
 @media (prefers-color-scheme: light) {
   :root {
-    --bg:            #F0F4FF;
-    --bg-2:          #E4ECFF;
-    --surface:       rgba(255, 255, 255, 0.92);
-    --surface-hover: rgba(240, 246, 255, 0.98);
-    --border:        rgba(100, 130, 200, 0.18);
-    --border-glow:   rgba(34, 211, 238, 0.40);
-    --text:          #0D1322;
-    --text-muted:    #4A5A7A;
+    --bg:            #FFFEF7;
+    --bg-2:          #FFF9E8;
+    --surface:       #FFFFFF;
+    --surface-hover: #FFF9E8;
+    --border:        #F0E6C8;
+    --border-glow:   rgba(244, 185, 66, 0.35);
+    --text:          #292929;
+    --text-muted:    #77736A;
   }
 }
 
@@ -65,11 +69,7 @@ html {
 
 body {
   font-family: var(--font);
-  background:
-    radial-gradient(circle at 15% 15%, rgba(34, 211, 238, 0.08) 0%, transparent 40%),
-    radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.08) 0%, transparent 45%),
-    var(--bg);
-  background-attachment: fixed;
+  background-color: var(--bg);
   color: var(--text);
   min-height: 100dvh;
   overflow-x: hidden;

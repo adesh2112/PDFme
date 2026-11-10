@@ -12,6 +12,7 @@ const { runPhase5Tests } = require('./test-phase5.js');
 const { runPhase6Tests } = require('./test-phase6.js');
 const { runPhase7Tests } = require('./test-phase7.js');
 const { runRazorpayTests } = require('./test-razorpay.js');
+const { runSaaSVerification } = require('./test-saas-platform-suite.js');
 const { verifyEditorGuard } = require('./verify-editor-guard.js');
 
 async function runMasterRegression() {
@@ -49,6 +50,15 @@ async function runMasterRegression() {
     results.razorpay = false;
   }
 
+  console.log('\n>>> [8/8] Running PDFme SaaS Platform Verification Suite (Mobile, Sync, Auth)...');
+  try {
+    await runSaaSVerification();
+    results.saas = true;
+  } catch (e) {
+    console.error('SaaS suite error:', e);
+    results.saas = false;
+  }
+
   console.log('\n>>> [FINAL GUARD] Verifying Existing PDF Editor Byte-for-Byte Integrity...');
   results.editorGuard = verifyEditorGuard();
 
@@ -65,6 +75,7 @@ async function runMasterRegression() {
   console.log(`║ Phase 6 (E-Signature Workflow & Audit Trail):       ${results.phase6 ? 'PASSED (100%)' : 'FAILED'}     ║`);
   console.log(`║ Phase 7 (Corporate Workspace & Multi-Tenant):      ${results.phase7 ? 'PASSED (100%)' : 'FAILED'}     ║`);
   console.log(`║ Razorpay Standard Web Checkout (Backend & Web):    ${results.razorpay ? 'PASSED (100%)' : 'FAILED'}     ║`);
+  console.log(`║ SaaS Platform (Mobile Header, Auth, Cloud Sync):   ${results.saas ? 'PASSED (100%)' : 'FAILED'}     ║`);
   console.log(`║ Existing PDF Editor Integrity Guard:               ${results.editorGuard ? 'PASSED (100%)' : 'FAILED'}     ║`);
   console.log('╠══════════════════════════════════════════════════════════════════╣');
   console.log(`║ Status: ${allPassed ? 'ALL SUITES PASSED' : 'SUITE FAILURES DETECTED'} | Total Time: ${durationSec}s              ║`);

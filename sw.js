@@ -1,11 +1,14 @@
-/* Pdfme Service Worker v4 — offline-first shell & high performance caching */
-const CACHE_NAME = 'pdfme-v4';
+/* Pdfme Service Worker v5 — offline-first shell & high performance caching */
+const CACHE_NAME = 'pdfme-v5';
 
 const APP_SHELL = [
   '/',
   '/index.html',
   '/styles.css',
+  '/css/saas-platform.css',
   '/app.js',
+  '/js/platform-ui.js',
+  '/js/razorpay-checkout.js',
   '/merge-worker.js',
   '/manifest.json',
   '/fonts/fonts.css',
@@ -47,6 +50,9 @@ self.addEventListener('fetch', (e) => {
   if (url.origin !== self.location.origin) return;
 
   const pathname = url.pathname;
+  // Never intercept API routes or healthchecks with service worker caching
+  if (pathname.startsWith('/api/') || pathname === '/health') return;
+
   const isHtmlOrJs =
     req.mode === 'navigate' ||
     req.destination === 'document' ||

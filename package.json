@@ -5,8 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "test": "node run-platform-regression-tests.js",
     "test:guard": "node verify-editor-guard.js",
     "test:razorpay": "node test-razorpay.js",
+    "test:saas": "node test-saas-platform-suite.js",
     "test:all": "node run-platform-regression-tests.js"
   },
   "keywords": [
@@ -19,7 +21,9 @@
   "author": "PDFme",
   "license": "MIT",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "dotenv": "^18.0.10",
+    "pg": "^8.13.1",
     "razorpay": "^2.9.8"
   }
 }

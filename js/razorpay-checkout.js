@@ -353,5 +353,19 @@
 
   // Expose to window
   window.PRICING_PLANS = PRICING_PLANS;
+
+  // Initialize payment gateway configuration and check DEBUG mode
+  document.addEventListener('DOMContentLoaded', async () => {
+    try {
+      const res = await fetch('/api/payment-config');
+      if (res.ok) {
+        const cfg = await res.json();
+        if (cfg.isDebug || window.PDFME_DEBUG) {
+          const debugWrap = document.getElementById('debug-test-checkout-wrap');
+          if (debugWrap) debugWrap.style.display = 'block';
+        }
+      }
+    } catch (e) {}
+  });
 })();
 
