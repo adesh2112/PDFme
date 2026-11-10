@@ -1,0 +1,40 @@
+/* Noto Sans & Serif Devanagari Font Definitions with unicode-range */
+@font-face {
+  font-family: 'Noto Sans Devanagari';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/NotoSansDevanagari-Regular.woff2') format('woff2'),
+       url('/fonts/NotoSansDevanagari-Regular.ttf') format('truetype');
+  unicode-range: U+0900-097F, U+1CD0-1CFF, U+A8E0-A8FF;
+}
+
+@font-face {
+  font-family: 'Noto Sans Devanagari';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/NotoSansDevanagari-Bold.woff2') format('woff2'),
+       url('/fonts/NotoSansDevanagari-Bold.ttf') format('truetype');
+  unicode-range: U+0900-097F, U+1CD0-1CFF, U+A8E0-A8FF;
+}
+
+@font-face {
+  font-family: 'Noto Serif Devanagari';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/NotoSerifDevanagari-Regular.woff2') format('woff2'),
+       url('/fonts/NotoSerifDevanagari-Regular.ttf') format('truetype');
+  unicode-range: U+0900-097F, U+1CD0-1CFF, U+A8E0-A8FF;
+}
+
+@font-face {
+  font-family: 'Noto Serif Devanagari';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/NotoSerifDevanagari-Bold.woff2') format('woff2'),
+       url('/fonts/NotoSerifDevanagari-Bold.ttf') format('truetype');
+  unicode-range: U+0900-097F, U+1CD0-1CFF, U+A8E0-A8FF;
+}

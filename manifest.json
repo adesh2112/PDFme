@@ -1,27 +1,39 @@
 {
-  "name": "Pdfme — Browser PDF Toolkit",
+  "name": "Pdfme — Browser PDF Toolkit & Productivity Suite",
   "short_name": "Pdfme",
-  "description": "Edit, merge and create PDFs entirely in your browser. No uploads, no backend.",
+  "description": "Client-side PDF productivity suite. Edit text, merge and convert PDFs directly in your browser without uploads. Optional cloud storage and AI tools.",
   "start_url": "/",
+  "id": "/",
   "display": "standalone",
   "orientation": "any",
   "theme_color": "#070B14",
   "background_color": "#070B14",
   "icons": [
     {
-      "src": "icons/icon-192.png",
+      "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "icons/icon-512.png",
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "categories": ["productivity", "utilities"],
   "screenshots": []
 }
-

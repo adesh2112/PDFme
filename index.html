@@ -8,9 +8,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="pdfme-api-url" content="">
-  <title>Pdfme — Browser PDF Toolkit</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23070B14'/><text y='22' x='4' font-size='22' fill='%2322D3EE'>P</text></svg>">
+  <title>Pdfme — Browser PDF Toolkit & Productivity Suite</title>
+  <meta name="description" content="Free client-side PDF editor and toolkit. Edit text, merge, convert photos to PDF, and edit Marathi Devanagari text directly in your browser.">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="preload" href="/fonts/space-grotesk-400.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/space-grotesk-600.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/fonts/fonts.css">
@@ -56,6 +61,10 @@
         <div class="header-desktop-actions">
           <button class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Light / Dark Mode" aria-label="Toggle Theme">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          </button>
+          <button class="btn btn-ghost btn-sm pwa-install-btn" id="pwa-install-btn" style="display:none;font-size:0.825rem;padding:7px 14px;border-radius:8px;" aria-label="Install Pdfme Chrome App">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Install
           </button>
           <button class="btn btn-ghost btn-sm" onclick="switchCategory('workspace')" style="font-size:0.825rem;padding:7px 14px;border-radius:8px;">Workspace</button>
           <button class="btn btn-primary btn-sm" onclick="handleUpgradeClick()" style="font-size:0.825rem;padding:7px 16px;border-radius:8px;">Upgrade</button>
@@ -110,7 +119,7 @@
         <!-- MIDDLE ROW – IMPORTANT ACTIONS CENTERED & ALWAYS ACCESSIBLE -->
         <div class="mobile-middle-row">
           <div class="mobile-actions-group">
-            <button class="mobile-action-btn mobile-theme-btn" onclick="toggleTheme()" title="Toggle Theme" aria-label="Toggle Theme">
+            <button class="mobile-action-btn mobile-theme-btn" onclick="toggleTheme()" title="Toggle Theme" aria-label="Theme">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
               <span class="btn-label">Theme</span>
             </button>
@@ -590,6 +599,10 @@
           <input type="checkbox" id="flatten-check">
           <span><strong>Remove original text</strong><br><small style="color:var(--text-muted)">Pages become images</small></span>
         </label>
+        <label class="check-row" style="margin:0;flex-shrink:0" for="phonetic-toggle" title="Convert Roman text typed into Marathi to Devanagari (e.g. namaskar -> नमस्कार)">
+          <input type="checkbox" id="phonetic-toggle">
+          <span><strong>Marathi (phonetic)</strong><br><small style="color:var(--text-muted)">Phonetic typing</small></span>
+        </label>
         <button class="btn btn-ghost" id="edit-open-btn" aria-label="Open a PDF file to edit" style="flex-shrink:0">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           Open PDF
@@ -628,7 +641,8 @@
         <option value="Space Grotesk">Space Grotesk</option>
         <option value="Noto Sans">Noto Sans</option>
         <option value="Noto Serif">Noto Serif</option>
-        <option value="Noto Sans Devanagari">Noto Sans Devanagari (Hindi)</option>
+        <option value="Noto Sans Devanagari">Noto Sans Devanagari (Marathi Sans)</option>
+        <option value="Noto Serif Devanagari">Noto Serif Devanagari (Marathi Serif)</option>
         <option value="Noto Sans Arabic">Noto Sans Arabic</option>
       </select>
 
@@ -1189,6 +1203,7 @@
   <!-- ── Authentication Modal (Sign In / Sign Up / Forgot Password) ── -->
   <div class="auth-modal-backdrop" id="auth-modal-backdrop" onclick="if(event.target===this) closeAuthModal()">
     <div class="auth-modal-box" role="dialog" aria-modal="true" aria-labelledby="auth-modal-heading">
+      <h2 id="auth-modal-heading" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;">Account Authentication</h2>
       <button class="saas-modal-close" onclick="closeAuthModal()" aria-label="Close dialog" style="position:absolute;top:16px;right:16px;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
@@ -1398,6 +1413,8 @@
 <script src="lib/doc-comparison-engine.js"></script>
 <script src="lib/invoice-extractor-engine.js"></script>
 <script src="js/tools-ai.js"></script>
+<script src="lib/sanscript.js"></script>
+<script src="js/marathi-transliterate.js"></script>
 <script src="js/platform-ui.js"></script>
 <script src="app.js" defer></script>
 </body>

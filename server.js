@@ -6,6 +6,13 @@ const path = require('path');
 const { handleAiRequest } = require('./api/ai-router.js');
 const { handleWorkspaceRequest } = require('./api/workspace-router.js');
 const { handleRazorpayRequest } = require('./api/razorpay-router.js');
+const {
+  PUBLIC_ROUTES,
+  PAGE_METADATA,
+  getRobotsTxt,
+  getSitemapXml,
+  renderPage
+} = require('./api/seo-router.js');
 
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
@@ -18,6 +25,7 @@ const MIME = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
   '.pdf': 'application/pdf',
   '.woff2': 'font/woff2',
   '.ttf': 'font/ttf',
@@ -133,7 +141,38 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 2. Static File Serving
+  // 2. SEO, Sitemap, Robots & Public Server-Rendered Routes
+  if (normalizedPath === '/robots.txt') {
+    const body = getRobotsTxt(req);
+    res.writeHead(200, {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'public, max-age=86400',
+    });
+    res.end(body);
+    return;
+  }
+
+  if (normalizedPath === '/sitemap.xml') {
+    const body = getSitemapXml(req);
+    res.writeHead(200, {
+      'Content-Type': 'application/xml; charset=utf-8',
+      'Cache-Control': 'public, max-age=86400',
+    });
+    res.end(body);
+    return;
+  }
+
+  if (PAGE_METADATA[normalizedPath]) {
+    const html = renderPage(req, normalizedPath);
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-cache',
+    });
+    res.end(html);
+    return;
+  }
+
+  // 3. Static File Serving
   let filePath = path.join(ROOT, reqPath === '/' ? '/index.html' : reqPath);
 
   fs.stat(filePath, (err, stats) => {

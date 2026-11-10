@@ -1,5 +1,5 @@
 /* Pdfme Service Worker v5 — offline-first shell & high performance caching */
-const CACHE_NAME = 'pdfme-v5';
+const CACHE_NAME = 'pdfme-v6-marathi';
 
 const APP_SHELL = [
   '/',
@@ -8,17 +8,34 @@ const APP_SHELL = [
   '/css/saas-platform.css',
   '/app.js',
   '/js/platform-ui.js',
-  '/js/razorpay-checkout.js',
+  '/js/tools-ai.js',
+  '/js/marathi-transliterate.js',
+  '/lib/sanscript.js',
   '/merge-worker.js',
   '/manifest.json',
   '/fonts/fonts.css',
+  '/fonts/devanagari-fonts.css',
   '/fonts/space-grotesk-400.woff2',
   '/fonts/space-grotesk-600.woff2',
+  '/fonts/NotoSansDevanagari-Regular.woff2',
+  '/fonts/NotoSansDevanagari-Bold.woff2',
+  '/fonts/NotoSerifDevanagari-Regular.woff2',
+  '/fonts/NotoSerifDevanagari-Bold.woff2',
   '/lib/pdf-lib.min.js',
+  '/lib/fontkit.umd.min.js',
   '/lib/pdf.min.js',
   '/lib/pdf.worker.min.js',
   '/icons/icon-192.png',
-  '/icons/icon-512.png'
+  '/icons/icon-512.png',
+  '/favicon.ico',
+  '/favicon.svg',
+  '/favicon-32x32.png',
+  '/favicon-16x16.png',
+  '/apple-touch-icon.png',
+  '/edit-pdf',
+  '/merge-pdf',
+  '/photos-to-pdf',
+  '/marathi-pdf-editor'
 ];
 
 self.addEventListener('install', (e) => {
@@ -73,7 +90,7 @@ self.addEventListener('fetch', (e) => {
         })
         .catch(() => {
           return caches.match(req).then((cached) => {
-            return cached || (req.mode === 'navigate' ? caches.match('/index.html') : Response.error());
+            return cached || (req.mode === 'navigate' ? caches.match('/') : Response.error());
           });
         })
     );

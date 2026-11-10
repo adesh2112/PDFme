@@ -49,16 +49,53 @@ function ensurePdfJs() {
 
 let pdfLibPromise = null;
 function ensurePdfLib() {
-  if (window.PDFLib) return Promise.resolve(window.PDFLib);
+  const existing = (typeof window !== 'undefined' && (window.PDFLib || window.pdfLib)) || (typeof PDFLib !== 'undefined' ? PDFLib : null);
+  if (existing) {
+    if (!existing.pdfDocument) existing.pdfDocument = existing.PDFDocument;
+    if (typeof window !== 'undefined') {
+      if (!window.PDFLib) window.PDFLib = existing;
+      if (!window.pdfLib) window.pdfLib = existing;
+    }
+    return Promise.resolve(existing);
+  }
   if (pdfLibPromise) return pdfLibPromise;
   pdfLibPromise = new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = '/lib/pdf-lib.min.js';
+    s.src = 'lib/pdf-lib.min.js';
     s.defer = true;
-    s.onload = () => resolve(window.PDFLib);
-    s.onerror = (err) => {
+    s.onload = () => {
+      const lib = (typeof window !== 'undefined' && (window.PDFLib || window.pdfLib)) || (typeof PDFLib !== 'undefined' ? PDFLib : null);
+      if (lib) {
+        if (!lib.pdfDocument) lib.pdfDocument = lib.PDFDocument;
+        if (typeof window !== 'undefined') {
+          window.PDFLib = lib;
+          window.pdfLib = lib;
+        }
+      }
+      resolve(lib);
+    };
+    s.onerror = () => {
       pdfLibPromise = null;
-      reject(err);
+      // Fallback try root path '/lib/pdf-lib.min.js'
+      const fallback = document.createElement('script');
+      fallback.src = '/lib/pdf-lib.min.js';
+      fallback.defer = true;
+      fallback.onload = () => {
+        const lib = (typeof window !== 'undefined' && (window.PDFLib || window.pdfLib)) || (typeof PDFLib !== 'undefined' ? PDFLib : null);
+        if (lib) {
+          if (!lib.pdfDocument) lib.pdfDocument = lib.PDFDocument;
+          if (typeof window !== 'undefined') {
+            window.PDFLib = lib;
+            window.pdfLib = lib;
+          }
+        }
+        resolve(lib);
+      };
+      fallback.onerror = (err2) => {
+        pdfLibPromise = null;
+        reject(new Error('Failed to load PDF library (lib/pdf-lib.min.js).'));
+      };
+      document.head.appendChild(fallback);
     };
     document.head.appendChild(s);
   });
@@ -137,13 +174,18 @@ function dismissToast(el) {
 
 /* ── Download ── */
 function downloadBytes(bytes, filename) {
+  if (window.__isTesting) return;
   const blob = new Blob([bytes], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  document.body.appendChild(a);
   a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 10000);
 }
 
 /* ── Format bytes ── */
@@ -618,6 +660,15 @@ function makeSortable(list, getItems, onReorder) {
 
   let items = [];
 
+  const SUPPORTED_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'svg', 'tiff', 'tif', 'jfif'];
+
+  function isSupportedImage(file) {
+    if (!file) return false;
+    if (file.type && file.type.startsWith('image/')) return true;
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    return SUPPORTED_EXTS.includes(ext);
+  }
+
   function render() {
     list.innerHTML = '';
     btn.disabled = items.length === 0;
@@ -669,21 +720,35 @@ function makeSortable(list, getItems, onReorder) {
   }
 
   function remove(i) {
-    URL.revokeObjectURL(items[i].url);
+    if (items[i] && items[i].url) {
+      URL.revokeObjectURL(items[i].url);
+    }
     items.splice(i, 1);
     render();
   }
 
   function addFiles(files) {
+    if (!files || files.length === 0) {
+      toast('No images selected. Please choose at least one image file.', 'warning');
+      return;
+    }
+    let addedCount = 0;
     for (const f of files) {
-      if (!f.type.startsWith('image/')) {
-        toast(`"${f.name}" is not an image.`, 'error');
+      if (f.size === 0) {
+        toast(`"${f.name}" is empty (0 bytes).`, 'error');
+        continue;
+      }
+      if (!isSupportedImage(f)) {
+        toast(`"${f.name}" is not a supported image format. Please select JPG, PNG, WebP, or other image files.`, 'error');
         continue;
       }
       const url = URL.createObjectURL(f);
       items.push({ file: f, url });
+      addedCount++;
     }
-    render();
+    if (addedCount > 0) {
+      render();
+    }
   }
 
   input.addEventListener('change', () => { addFiles([...input.files]); input.value = ''; });
@@ -692,11 +757,13 @@ function makeSortable(list, getItems, onReorder) {
   drop.addEventListener('drop', (e) => {
     e.preventDefault();
     drop.classList.remove('drag-over');
-    addFiles([...e.dataTransfer.files]);
+    if (e.dataTransfer && e.dataTransfer.files) {
+      addFiles([...e.dataTransfer.files]);
+    }
   });
   drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') input.click(); });
   clearBtn.addEventListener('click', () => {
-    items.forEach(it => URL.revokeObjectURL(it.url));
+    items.forEach(it => { if (it.url) URL.revokeObjectURL(it.url); });
     items = [];
     render();
   });
@@ -711,74 +778,214 @@ function makeSortable(list, getItems, onReorder) {
     letter: [612, 792],
   };
 
-  function imageToJpeg(file) {
+  function loadImageDimensionsAndValidity(file) {
     return new Promise((resolve, reject) => {
+      if (!file || file.size === 0) {
+        return reject(new Error(`File "${file ? file.name : 'Unknown'}" is empty (0 bytes).`));
+      }
+      const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
-        const cv = document.createElement('canvas');
-        cv.width = img.naturalWidth;
-        cv.height = img.naturalHeight;
-        cv.getContext('2d').drawImage(img, 0, 0);
-        resolve({ dataUrl: cv.toDataURL('image/jpeg', 0.92), w: img.naturalWidth, h: img.naturalHeight });
-        URL.revokeObjectURL(img.src);
+        const w = img.naturalWidth;
+        const h = img.naturalHeight;
+        URL.revokeObjectURL(url);
+        if (!w || !h) {
+          return reject(new Error(`Image "${file.name}" has invalid dimensions (${w}x${h}).`));
+        }
+        resolve({ w, h });
       };
-      img.onerror = reject;
-      img.src = URL.createObjectURL(file);
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error(`Image "${file.name}" is corrupted or could not be decoded.`));
+      };
+      img.src = url;
+    });
+  }
+
+  async function embedImageSafely(pdf, file, origW, origH) {
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    const mime = (file.type || '').toLowerCase();
+    const isJpeg = mime === 'image/jpeg' || ext === 'jpg' || ext === 'jpeg' || ext === 'jfif';
+    const isPng = mime === 'image/png' || ext === 'png';
+
+    // Direct embed for JPEG
+    if (isJpeg) {
+      try {
+        const buf = await file.arrayBuffer();
+        const embedded = await pdf.embedJpg(new Uint8Array(buf));
+        return { embedded, w: embedded.width || origW, h: embedded.height || origH };
+      } catch (err) {
+        console.warn(`Direct embedJpg failed for "${file.name}", using canvas fallback:`, err);
+      }
+    }
+
+    // Direct embed for PNG
+    if (isPng) {
+      try {
+        const buf = await file.arrayBuffer();
+        const embedded = await pdf.embedPng(new Uint8Array(buf));
+        return { embedded, w: embedded.width || origW, h: embedded.height || origH };
+      } catch (err) {
+        console.warn(`Direct embedPng failed for "${file.name}", using canvas fallback:`, err);
+      }
+    }
+
+    // Fallback via high-quality canvas (for WebP, GIF, BMP, SVG, or exotic JPEG/PNG)
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = async () => {
+        try {
+          let w = img.naturalWidth || origW;
+          let h = img.naturalHeight || origH;
+          // Very large image guard: avoid exceeding mobile/browser canvas memory limits
+          const MAX_DIM = 4096;
+          if (w > MAX_DIM || h > MAX_DIM) {
+            const s = Math.min(MAX_DIM / w, MAX_DIM / h);
+            w = Math.max(1, Math.round(w * s));
+            h = Math.max(1, Math.round(h * s));
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            URL.revokeObjectURL(url);
+            return reject(new Error('Canvas context could not be created'));
+          }
+          ctx.drawImage(img, 0, 0, w, h);
+          URL.revokeObjectURL(url);
+
+          const prefersPng = isPng || mime === 'image/webp' || ext === 'webp' || mime === 'image/svg+xml' || ext === 'svg';
+          let embedded;
+          if (prefersPng) {
+            const dataUrl = canvas.toDataURL('image/png');
+            const b64 = dataUrl.split(',')[1];
+            const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+            embedded = await pdf.embedPng(bytes);
+          } else {
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+            const b64 = dataUrl.split(',')[1];
+            const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+            embedded = await pdf.embedJpg(bytes);
+          }
+          resolve({ embedded, w, h });
+        } catch (e) {
+          URL.revokeObjectURL(url);
+          reject(e);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error(`Failed to decode image "${file.name}".`));
+      };
+      img.src = url;
     });
   }
 
   btn.addEventListener('click', async () => {
-    if (items.length === 0) return;
+    if (items.length === 0) {
+      toast('Please add at least one image before creating a PDF.', 'warning');
+      return;
+    }
     btn.disabled = true;
     clearBtn.disabled = true;
     progress.classList.add('visible');
+
     const pageSize = document.querySelector('input[name="page-size"]:checked')?.value || 'a4';
 
     try {
-      await ensurePdfLib();
-      const { PDFDocument } = PDFLib;
-      const pdf = await PDFDocument.create();
-      const MARGIN = 36;
+      // 1. Ensure PDF-Lib is ready
+      const pdfLib = await ensurePdfLib();
+      const PDFDocument = (pdfLib && (pdfLib.PDFDocument || pdfLib.pdfDocument)) ||
+                          (typeof PDFLib !== 'undefined' && (PDFLib.PDFDocument || PDFLib.pdfDocument)) ||
+                          (typeof window !== 'undefined' && window.PDFLib && (window.PDFLib.PDFDocument || window.PDFLib.pdfDocument));
 
+      if (!PDFDocument || typeof PDFDocument.create !== 'function') {
+        throw new Error('PDF-Lib library could not be loaded. PDFDocument.create is unavailable.');
+      }
+
+      const pdf = await PDFDocument.create();
+
+      // 2. Validate all images first
       for (const item of items) {
-        const { dataUrl, w: imgW, h: imgH } = await imageToJpeg(item.file);
-        const b64 = dataUrl.split(',')[1];
-        const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-        const pdfImg = await pdf.embedJpg(bytes);
+        if (!item.file || item.file.size === 0) {
+          throw new Error(`File "${item.file ? item.file.name : 'Unknown'}" is empty.`);
+        }
+      }
+
+      // 3. Process each image in order
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const { w: imgW, h: imgH } = await loadImageDimensionsAndValidity(item.file);
+        const { embedded, w: drawnW, h: drawnH } = await embedImageSafely(pdf, item.file, imgW, imgH);
+
+        const realW = drawnW || imgW;
+        const realH = drawnH || imgH;
 
         let pgW, pgH;
+        let dx, dy, dW, dH;
+
         if (pageSize === 'fit') {
-          pgW = imgW * 0.75;
-          pgH = imgH * 0.75;
+          // Fit to Photo: page matches photo dimensions at 72 DPI (0.75 ratio), 0 margin, no stretching
+          pgW = realW * 0.75;
+          pgH = realH * 0.75;
+          dW = pgW;
+          dH = pgH;
+          dx = 0;
+          dy = 0;
         } else {
-          [pgW, pgH] = PAGE_SIZES[pageSize];
-          if (imgW > imgH && pgW < pgH) [pgW, pgH] = [pgH, pgW];
+          [pgW, pgH] = PAGE_SIZES[pageSize] || PAGE_SIZES.a4;
+          // Auto orientation: match photo orientation (portrait vs landscape)
+          if (realW > realH && pgW < pgH) {
+            [pgW, pgH] = [pgH, pgW];
+          } else if (realW < realH && pgW > pgH) {
+            [pgW, pgH] = [pgH, pgW];
+          }
+
+          const MARGIN = 36; // 0.5 inch (36 pt)
+          const avW = pgW - MARGIN * 2;
+          const avH = pgH - MARGIN * 2;
+          const scale = Math.min(avW / realW, avH / realH);
+          dW = realW * scale;
+          dH = realH * scale;
+          dx = MARGIN + (avW - dW) / 2;
+          dy = MARGIN + (avH - dH) / 2;
         }
 
         const page = pdf.addPage([pgW, pgH]);
-        const avW = pgW - MARGIN * 2;
-        const avH = pgH - MARGIN * 2;
-        const scale = Math.min(avW / imgW, avH / imgH);
-        const dW = imgW * scale;
-        const dH = imgH * scale;
-        const dx = MARGIN + (avW - dW) / 2;
-        const dy = MARGIN + (avH - dH) / 2;
-
-        page.drawImage(pdfImg, { x: dx, y: dy, width: dW, height: dH });
+        page.drawImage(embedded, { x: dx, y: dy, width: dW, height: dH });
       }
 
+      // 4. Serialize to PDF bytes
       const pdfBytes = await pdf.save({ useObjectStreams: true });
-      progress.classList.remove('visible');
-      btn.disabled = false;
-      clearBtn.disabled = false;
-      downloadBytes(pdfBytes, 'photos.pdf');
-      toast('PDF created and downloaded!', 'success');
+      if (!pdfBytes || pdfBytes.length === 0) {
+        throw new Error('Generated PDF is empty.');
+      }
+
+      // 5. Download the PDF
+      let downloadName = 'photos.pdf';
+      if (items.length === 1 && items[0].file && items[0].file.name) {
+        const baseName = items[0].file.name.replace(/\.[^/.]+$/, '');
+        downloadName = `${baseName}.pdf`;
+      }
+      try {
+        downloadBytes(pdfBytes, downloadName);
+      } catch (dlErr) {
+        throw new Error(`Download failed: ${dlErr.message}`);
+      }
+
+      // 6. Only show success message after generation & download preparation succeeded
+      toast('PDF created and downloaded successfully!', 'success');
     } catch (err) {
+      console.error('Photo to PDF error:', err);
+      const msg = err && err.message ? err.message : 'An unexpected error occurred while generating PDF.';
+      toast(`Failed to create PDF: ${msg}`, 'error');
+    } finally {
       progress.classList.remove('visible');
-      btn.disabled = false;
-      clearBtn.disabled = false;
-      toast(`Failed to create PDF: ${err.message}`, 'error');
-      console.error(err);
+      btn.disabled = items.length === 0;
+      clearBtn.disabled = items.length === 0;
     }
   });
 
@@ -822,6 +1029,7 @@ function makeSortable(list, getItems, onReorder) {
   const canvasArea = document.getElementById('edit-canvas-area');
   const emptyState = document.getElementById('edit-empty');
   const flattenCheck = document.getElementById('flatten-check');
+  const phoneticToggle = document.getElementById('phonetic-toggle');
   const colPicker = document.getElementById('colour-picker');
   const colSwatch = document.getElementById('colour-swatch');
   const sizeInput = document.getElementById('size-input');
@@ -1392,7 +1600,8 @@ function makeSortable(list, getItems, onReorder) {
       case 'Space Grotesk': return "'Space Grotesk', sans-serif";
       case 'Noto Sans': return "'Noto Sans', sans-serif";
       case 'Noto Serif': return "'Noto Serif', serif";
-      case 'Noto Sans Devanagari': return "'Noto Sans Devanagari', sans-serif";
+      case 'Noto Sans Devanagari': return "'Noto Sans Devanagari', 'Nirmala UI', Mangal, 'Noto Sans', sans-serif";
+      case 'Noto Serif Devanagari': return "'Noto Serif Devanagari', Kokila, Utsaah, 'Sanskrit Text', 'Noto Serif', serif";
       case 'Noto Sans Arabic': return "'Noto Sans Arabic', sans-serif";
       case 'Helvetica':
       default:
@@ -1403,6 +1612,33 @@ function makeSortable(list, getItems, onReorder) {
   /* ══════════════════════════════════════════════════════════
      NOTO FONT SELECTION & LAZY BYTE LOADING
      ══════════════════════════════════════════════════════════ */
+  function ensureDevanagariFonts() {
+    if (document.getElementById('devanagari-fonts-link')) return;
+    const link = document.createElement('link');
+    link.id = 'devanagari-fonts-link';
+    link.rel = 'stylesheet';
+    link.href = '/fonts/devanagari-fonts.css';
+    document.head.appendChild(link);
+  }
+
+  function detectDevanagariFont(rawName, cleanedName) {
+    const combined = (rawName + ' ' + cleanedName).toLowerCase();
+    // Kokila, Utsaah, Sanskrit Text, Noto Serif = Serif
+    if (/kokila|utsaah|sanskrit|serif/i.test(combined)) {
+      return {
+        family: 'Noto Serif Devanagari',
+        isSerif: true,
+        cssFamily: "'Noto Serif Devanagari', Kokila, Utsaah, 'Sanskrit Text', 'Noto Serif', serif"
+      };
+    }
+    // Mangal, Nirmala, Mukta, Hind, Noto Sans = Sans
+    return {
+      family: 'Noto Sans Devanagari',
+      isSerif: false,
+      cssFamily: "'Noto Sans Devanagari', 'Nirmala UI', Mangal, 'Noto Sans', sans-serif"
+    };
+  }
+
   async function loadNotoFontBytes(fontFileName) {
     if (notoFontCache[fontFileName]) return notoFontCache[fontFileName];
     const res = await fetch(`/fonts/${fontFileName}`);
@@ -1412,9 +1648,19 @@ function makeSortable(list, getItems, onReorder) {
     return notoFontCache[fontFileName];
   }
 
-  function pickNotoFontForText(str, isSerif) {
-    if (/[\u0900-\u097F]/.test(str)) {
-      return { fileName: 'NotoSansDevanagari-Regular.ttf', cssFamily: "'Noto Sans Devanagari', sans-serif" };
+  function pickNotoFontForText(str, isSerif, isBold) {
+    if (/[\u0900-\u097F\u1CD0-\u1CFF\uA8E0-\uA8FF]/.test(str)) {
+      ensureDevanagariFonts();
+      if (isSerif) {
+        return {
+          fileName: isBold ? 'NotoSerifDevanagari-Bold.ttf' : 'NotoSerifDevanagari-Regular.ttf',
+          cssFamily: "'Noto Serif Devanagari', Kokila, Utsaah, 'Sanskrit Text', 'Noto Serif', serif"
+        };
+      }
+      return {
+        fileName: isBold ? 'NotoSansDevanagari-Bold.ttf' : 'NotoSansDevanagari-Regular.ttf',
+        cssFamily: "'Noto Sans Devanagari', 'Nirmala UI', Mangal, 'Noto Sans', sans-serif"
+      };
     }
     if (/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\u0590-\u05FF]/.test(str)) {
       return { fileName: 'NotoSansArabic-Regular.ttf', cssFamily: "'Noto Sans Arabic', sans-serif" };
@@ -1425,11 +1671,88 @@ function makeSortable(list, getItems, onReorder) {
     return { fileName: 'NotoSans-Regular.ttf', cssFamily: "'Noto Sans', sans-serif" };
   }
 
+  const DEVANAGARI_COMBINING_REGEX = /^[\u0901-\u0903\u093C\u093E-\u094F\u0951-\u0957\u0962\u0963\uA8E0-\uA8F1]/;
+  const DEVANAGARI_VIRAMA_END_REGEX = /[\u094D][\u200C\u200D]?$/;
+
+  function detectLegacyMarathi(items, pjsPage, textContent) {
+    const legacyFontRegex = /kruti|shree|dvb|walkman|aps|agra|chanakya|shivaji|kiran|devlys/i;
+    if (pjsPage && pjsPage.commonObjs) {
+      for (const item of items) {
+        if (item.fontName && pjsPage.commonObjs.has(item.fontName)) {
+          const fontObj = pjsPage.commonObjs.get(item.fontName);
+          const fn = (fontObj?.name || fontObj?.loadedName || '').toLowerCase();
+          if (legacyFontRegex.test(fn)) return true;
+        }
+      }
+    }
+    if (textContent && textContent.styles) {
+      for (const k in textContent.styles) {
+        const fam = ((textContent.styles[k].fontFamily || '') + ' ' + k).toLowerCase();
+        if (legacyFontRegex.test(fam)) return true;
+      }
+    }
+    let legacyCount = 0;
+    let puaCount = 0;
+    let totalChars = 0;
+    for (const item of items) {
+      if (!item.str) continue;
+      const str = item.str;
+      totalChars += str.length;
+      const fn = (item.fontName || '').toLowerCase();
+      if (legacyFontRegex.test(fn)) legacyCount++;
+      for (let i = 0; i < str.length; i++) {
+        const code = str.charCodeAt(i);
+        if ((code >= 0xE000 && code <= 0xF8FF) || code === 0xFFFD) {
+          puaCount++;
+        }
+      }
+    }
+    if (legacyCount > 0) return true;
+    if (totalChars > 8 && (puaCount / totalChars) > 0.15) return true;
+    return false;
+  }
+
+  function showLegacyFontBanner(pageData) {
+    if (pageData.legacyBanner) return;
+    const banner = document.createElement('div');
+    banner.className = 'legacy-font-banner';
+    banner.setAttribute('role', 'alert');
+    banner.innerHTML = `
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span>This PDF uses an old Marathi font that doesn't store real text. Use 'Make text editable (OCR)'</span>
+      <button type="button">Make text editable (OCR)</button>
+    `;
+    const btn = banner.querySelector('button');
+    btn.addEventListener('click', () => {
+      banner.remove();
+      pageData.legacyBanner = null;
+      showOcrBanner(pageData, 'mar');
+    });
+    pageData.wrap.appendChild(banner);
+    pageData.legacyBanner = banner;
+  }
+
   /* ══════════════════════════════════════════════════════════
      TEXT EXTRACTION & SEGMENT GROUPING IN ROTATED FRAME
      ══════════════════════════════════════════════════════════ */
   function buildSegments(items, viewport, pjsPage, textContent) {
     if (!items || items.length === 0) return [];
+
+    // Detect legacy Marathi fonts (Kruti, Shree, DVB, Walkman, APS, Agra, Chanakya, PUA)
+    if (detectLegacyMarathi(items, pjsPage, textContent)) {
+      const pageData = pages.find(p => p && p.pjsPage === pjsPage);
+      if (pageData) {
+        pageData.isLegacyFont = true;
+        showLegacyFontBanner(pageData);
+      }
+      return []; // Do not offer garbage text for editing
+    }
+
+    // Detect Devanagari to dynamically load fonts
+    const hasDevanagari = items.some(it => it.str && /[\u0900-\u097F\u1CD0-\u1CFF\uA8E0-\uA8FF]/.test(it.str));
+    if (hasDevanagari) {
+      ensureDevanagariFonts();
+    }
 
     const pageWidth = viewport.viewBox ? Math.abs(viewport.viewBox[2] - viewport.viewBox[0]) : (viewport.width / viewport.scale);
 
@@ -1438,6 +1761,7 @@ function makeSortable(list, getItems, onReorder) {
     for (const item of items) {
       if (!item.str || item.str.trim() === '') continue;
 
+      const normStr = item.str.normalize('NFC');
       const tx = item.transform || [1, 0, 0, 1, 0, 0];
       const a = tx[0], b = tx[1], c = tx[2], d = tx[3], e = tx[4], f = tx[5];
       let fontSize = Math.hypot(a, b);
@@ -1456,13 +1780,13 @@ function makeSortable(list, getItems, onReorder) {
       const v = -e * sinA + f * cosA;
       let width = Math.abs(item.width);
       if (width <= 0) {
-        width = item.str.length * (fontSize * 0.55);
+        width = normStr.length * (fontSize * 0.55);
       }
 
       const fontProps = detectFontProperties(item.fontName, pjsPage, textContent);
 
       processed.push({
-        str: item.str,
+        str: normStr,
         e, f, u, v,
         fontSize, angle,
         width,
@@ -1523,6 +1847,10 @@ function makeSortable(list, getItems, onReorder) {
           const prevEndU = prev.u + prev.width;
           const gap = curr.u - prevEndU;
 
+          const currStartsCombining = DEVANAGARI_COMBINING_REGEX.test(curr.str);
+          const prevEndsVirama = DEVANAGARI_VIRAMA_END_REGEX.test(prev.str);
+          const mustJoinDirectly = currStartsCombining || prevEndsVirama;
+
           // Merge ONLY if same styling and close adjacent spacing
           const sameStyle = prev.fontProps.bold === curr.fontProps.bold &&
                             prev.fontProps.italic === curr.fontProps.italic &&
@@ -1530,13 +1858,15 @@ function makeSortable(list, getItems, onReorder) {
                             Math.abs(prev.fontSize - curr.fontSize) <= 1.0;
 
           const maxWordGap = prev.fontSize * 1.5;
-          if (!sameStyle || prev.hasEOL || gap > maxWordGap || gap < -prev.fontSize * 0.5) {
+          if (!mustJoinDirectly && (!sameStyle || prev.hasEOL || gap > maxWordGap || gap < -prev.fontSize * 0.5)) {
             segments.push(buildSegmentFromItems(segItems, pjsPage, textContent));
             segItems = [curr];
           } else {
-            // Insert space if gap is between words
-            if (gap > prev.fontSize * 0.15 && !prev.str.endsWith(' ') && !curr.str.startsWith(' ')) {
+            // NEVER insert space before a combining mark or after a virama
+            if (!mustJoinDirectly && gap > prev.fontSize * 0.15 && !prev.str.endsWith(' ') && !curr.str.startsWith(' ')) {
               curr.insertSpaceBefore = true;
+            } else {
+              curr.insertSpaceBefore = false;
             }
             segItems.push(curr);
           }
@@ -1561,11 +1891,17 @@ function makeSortable(list, getItems, onReorder) {
   function buildSegmentFromItems(items, pjsPage, textContent) {
     if (!items || items.length === 0) return null;
 
-    let text = items[0].str;
+    let text = items[0].str ? items[0].str.normalize('NFC') : '';
     for (let i = 1; i < items.length; i++) {
-      if (items[i].insertSpaceBefore) text += ' ';
-      text += items[i].str;
+      const itemStr = items[i].str ? items[i].str.normalize('NFC') : '';
+      const prevEndsVirama = DEVANAGARI_VIRAMA_END_REGEX.test(text);
+      const currStartsCombining = DEVANAGARI_COMBINING_REGEX.test(itemStr);
+      if (items[i].insertSpaceBefore && !prevEndsVirama && !currStartsCombining) {
+        text += ' ';
+      }
+      text += itemStr;
     }
+    text = text.normalize('NFC');
 
     const first = items[0];
     const last = items[items.length - 1];
@@ -1576,7 +1912,20 @@ function makeSortable(list, getItems, onReorder) {
     const angleDeg = angle * (180 / Math.PI);
     const width = Math.max((last.u + last.width) - first.u, first.width);
 
-    const fontProps = first.fontProps || detectFontProperties(first.fontName, pjsPage, textContent);
+    let fontProps = first.fontProps || detectFontProperties(first.fontName, pjsPage, textContent);
+
+    // Detect Devanagari
+    const isDevanagari = /[\u0900-\u097F\u1CD0-\u1CFF\uA8E0-\uA8FF]/.test(text);
+    let fontFamily = fontProps.family;
+    let cssFamily = fontProps.cssFamily;
+    let lineSpacing = 1.25;
+
+    if (isDevanagari) {
+      const devFont = detectDevanagariFont(fontProps.rawName, fontProps.cleanedName);
+      fontFamily = devFont.family;
+      cssFamily = devFont.cssFamily;
+      lineSpacing = 1.45; // Taller line-height for stacked matras
+    }
 
     // Detect if RTL text (Arabic or Hebrew)
     const isRtl = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\u0590-\u05FF]/.test(text);
@@ -1596,17 +1945,19 @@ function makeSortable(list, getItems, onReorder) {
       angleDeg,
       fontName: fontProps.cleanedName,
       rawFontName: fontProps.rawName,
-      fontFamily: fontProps.family,
-      cssFamily: fontProps.cssFamily,
+      fontFamily,
+      cssFamily,
       bold: fontProps.bold,
       italic: fontProps.italic,
       underline: false,
+      isDevanagari,
+      lang: isDevanagari ? 'mr' : 'en',
       isRtl,
       dir: isRtl ? 'rtl' : 'ltr',
       color: '#000000',
       bgColor: '#ffffff',
       textAlign: isRtl ? 'right' : 'left',
-      lineSpacing: 1.25,
+      lineSpacing,
       letterSpacing: 0,
       span: null,
     };
@@ -2129,18 +2480,33 @@ function makeSortable(list, getItems, onReorder) {
     const screenFontSize = seg.fontSize * screenScale;
     const screenWidth = Math.max(seg.width * screenScale, 8);
     const screenAscent = screenFontSize * 0.82;
-    const screenHeight = screenFontSize * 1.18;
+    const screenHeight = screenFontSize * (seg.isDevanagari ? 1.45 : 1.18);
 
     span.style.position = 'absolute';
     span.style.left = `${p0[0]}px`;
     span.style.top = `${p0[1] - screenAscent}px`;
-    span.style.width = `${screenWidth}px`;
     span.style.minHeight = `${screenHeight}px`;
-    span.style.fontSize = `${screenFontSize}px`;
-    span.style.lineHeight = `${seg.lineSpacing || 1.15}`;
+    span.style.lineHeight = `${seg.isDevanagari ? 1.45 : (seg.lineSpacing || 1.15)}`;
     span.style.fontFamily = seg.cssFamily;
-    span.style.transformOrigin = `0px ${screenAscent}px`;
-    span.style.transform = `rotate(${screenAngleDeg}deg)`;
+
+    // iOS zoom prevention: font must be at least 16px to prevent auto-zoom, scaled down visually
+    const minIOSSize = 16;
+    if (screenFontSize < minIOSSize) {
+      const scaleRatio = screenFontSize / minIOSSize;
+      span.style.fontSize = `${minIOSSize}px`;
+      span.style.transformOrigin = `0px ${screenAscent / scaleRatio}px`;
+      span.style.transform = `rotate(${screenAngleDeg}deg) scale(${scaleRatio})`;
+      span.style.width = `${screenWidth / scaleRatio}px`;
+    } else {
+      span.style.fontSize = `${screenFontSize}px`;
+      span.style.transformOrigin = `0px ${screenAscent}px`;
+      span.style.transform = `rotate(${screenAngleDeg}deg)`;
+      span.style.width = `${screenWidth}px`;
+    }
+
+    if (seg.isDevanagari || seg.lang === 'mr') {
+      span.setAttribute('lang', 'mr');
+    }
 
     span.style.fontWeight = seg.bold ? 'bold' : 'normal';
     span.style.fontStyle = seg.italic ? 'italic' : 'normal';
@@ -2181,7 +2547,129 @@ function makeSortable(list, getItems, onReorder) {
       selectSegment(seg, pages[pageIdx]);
     });
 
+    // Backspace removing one grapheme using Intl.Segmenter
+    span.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && (seg.isDevanagari || span.getAttribute('lang') === 'mr' || /[\u0900-\u097F]/.test(span.innerText)) && typeof Intl !== 'undefined' && Intl.Segmenter) {
+        const sel = window.getSelection();
+        if (sel && sel.isCollapsed && sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          if (range.startContainer === span || span.contains(range.startContainer)) {
+            const preRange = range.cloneRange();
+            preRange.selectNodeContents(span);
+            preRange.setEnd(range.startContainer, range.startOffset);
+            const preTextVal = preRange.toString();
+            if (preTextVal.length > 0) {
+              e.preventDefault();
+              const segmenter = new Intl.Segmenter('mr', { granularity: 'grapheme' });
+              const graphemes = [...segmenter.segment(preTextVal)].map(g => g.segment);
+              const lastGrapheme = graphemes[graphemes.length - 1] || '';
+              const newPreText = preTextVal.slice(0, preTextVal.length - lastGrapheme.length);
+
+              const postRange = range.cloneRange();
+              postRange.selectNodeContents(span);
+              postRange.setStart(range.endContainer, range.endOffset);
+              const postText = postRange.toString();
+
+              span.innerText = newPreText + postText;
+              seg.currentText = span.innerText;
+              span.classList.add('edited');
+              span.style.color = seg.color || '#000000';
+              span.style.background = seg.bgColor || '#ffffff';
+
+              const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT, null, false);
+              let charCount = 0;
+              let node = walker.nextNode();
+              let placed = false;
+              while (node) {
+                if (charCount + node.length >= newPreText.length) {
+                  const newRange = document.createRange();
+                  newRange.setStart(node, newPreText.length - charCount);
+                  newRange.collapse(true);
+                  sel.removeAllRanges();
+                  sel.addRange(newRange);
+                  placed = true;
+                  break;
+                }
+                charCount += node.length;
+                node = walker.nextNode();
+              }
+              if (!placed) {
+                const newRange = document.createRange();
+                newRange.selectNodeContents(span);
+                newRange.collapse(false);
+                sel.removeAllRanges();
+                sel.addRange(newRange);
+              }
+              updateFormatToolbarPosition();
+              return;
+            }
+          }
+        }
+      }
+    });
+
+    // Phonetic typing and text input handling
     span.addEventListener('input', () => {
+      const isPhonetic = phoneticToggle && phoneticToggle.checked;
+      if (isPhonetic && (seg.isDevanagari || /[\u0900-\u097F]/.test(span.innerText) || span.getAttribute('lang') === 'mr')) {
+        if (window.MarathiPhonetic && typeof window.MarathiPhonetic.transliterateMarathi === 'function') {
+          const sel = window.getSelection();
+          if (sel && sel.isCollapsed && sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            const preRange = range.cloneRange();
+            preRange.selectNodeContents(span);
+            preRange.setEnd(range.startContainer, range.startOffset);
+            const preTextVal = preRange.toString();
+            
+            const romanMatch = preTextVal.match(/([a-zA-Z]+)$/);
+            if (romanMatch) {
+              const romanWord = romanMatch[1];
+              const devWord = window.MarathiPhonetic.transliterateMarathi(romanWord);
+              if (devWord && devWord !== romanWord) {
+                const newPreText = preTextVal.slice(0, preTextVal.length - romanWord.length) + devWord;
+                const postRange = range.cloneRange();
+                postRange.selectNodeContents(span);
+                postRange.setStart(range.endContainer, range.endOffset);
+                const postText = postRange.toString();
+
+                span.innerText = newPreText + postText;
+                seg.currentText = span.innerText;
+                span.classList.add('edited');
+                span.style.color = seg.color || '#000000';
+                span.style.background = seg.bgColor || '#ffffff';
+
+                const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT, null, false);
+                let charCount = 0;
+                let node = walker.nextNode();
+                let placed = false;
+                while (node) {
+                  if (charCount + node.length >= newPreText.length) {
+                    const newRange = document.createRange();
+                    newRange.setStart(node, newPreText.length - charCount);
+                    newRange.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(newRange);
+                    placed = true;
+                    break;
+                  }
+                  charCount += node.length;
+                  node = walker.nextNode();
+                }
+                if (!placed) {
+                  const newRange = document.createRange();
+                  newRange.selectNodeContents(span);
+                  newRange.collapse(false);
+                  sel.removeAllRanges();
+                  sel.addRange(newRange);
+                }
+                updateFormatToolbarPosition();
+                return;
+              }
+            }
+          }
+        }
+      }
+
       seg.currentText = span.innerText;
       span.classList.add('edited');
       span.style.color = seg.color || '#000000';
@@ -2269,7 +2757,7 @@ function makeSortable(list, getItems, onReorder) {
   /* ══════════════════════════════════════════════════════════
      OCR FOR SCANNED & IMAGE-ONLY PAGES
      ══════════════════════════════════════════════════════════ */
-  function showOcrBanner(pageData) {
+  function showOcrBanner(pageData, defaultLang = 'mar') {
     if (pageData.ocrBanner) return;
 
     const banner = document.createElement('div');
@@ -2280,8 +2768,9 @@ function makeSortable(list, getItems, onReorder) {
         <span>Scanned / image page detected.</span>
         <div class="ocr-controls">
           <select class="ocr-lang-select" aria-label="OCR Language">
-            <option value="eng">English (eng)</option>
-            <option value="hin">Hindi (hin)</option>
+            <option value="mar"${defaultLang === 'mar' ? ' selected' : ''}>Marathi (mar)</option>
+            <option value="hin"${defaultLang === 'hin' ? ' selected' : ''}>Hindi (hin)</option>
+            <option value="eng"${defaultLang === 'eng' ? ' selected' : ''}>English (eng)</option>
           </select>
           <button class="ocr-btn">Make text editable (OCR)</button>
         </div>
@@ -2348,21 +2837,33 @@ function makeSortable(list, getItems, onReorder) {
           const fontSize = Math.abs(pPdfTop[1] - pPdfBaseline[1]) || 12;
           const width = Math.hypot(pPdfEnd[0] - pPdfBaseline[0], pPdfEnd[1] - pPdfBaseline[1]);
 
+          const isDev = /[\u0900-\u097F\u1CD0-\u1CFF\uA8E0-\uA8FF]/.test(str);
+          if (isDev) {
+            ensureDevanagariFonts();
+          }
+
           const seg = {
             originalText: str,
             currentText: null,
             x: pPdfBaseline[0],
             baselineY: pPdfBaseline[1],
+            origX: pPdfBaseline[0],
+            origBaselineY: pPdfBaseline[1],
             fontSize,
+            origFontSize: fontSize,
             width,
+            origWidth: width,
             angle: 0,
             angleDeg: 0,
-            fontName: 'Helvetica',
-            rawFontName: 'Helvetica',
-            fontFamily: 'Helvetica',
-            cssFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+            fontName: isDev ? 'NotoSansDevanagari-Regular' : 'Helvetica',
+            rawFontName: isDev ? 'NotoSansDevanagari-Regular' : 'Helvetica',
+            fontFamily: isDev ? 'Noto Sans Devanagari' : 'Helvetica',
+            cssFamily: isDev ? "'Noto Sans Devanagari', 'Nirmala UI', Mangal, 'Noto Sans', sans-serif" : "'Helvetica Neue', Helvetica, Arial, sans-serif",
             bold: false,
             italic: false,
+            isDevanagari: isDev,
+            lang: isDev ? 'mr' : 'en',
+            lineSpacing: isDev ? 1.45 : 1.25,
             isRtl: /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(str),
             dir: /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(str) ? 'rtl' : 'ltr',
             color: '#000000',
@@ -3140,26 +3641,79 @@ function makeSortable(list, getItems, onReorder) {
               const textToDraw = seg.currentText || '';
               if (textToDraw.length > 0) {
                 // Font selection
-                let chosenFont = await getStdFont(seg.fontFamily, seg.bold, seg.italic);
-                if (!canFontEncode(chosenFont, textToDraw)) {
-                  // Fall back to Noto font
-                  const notoInfo = pickNotoFontForText(textToDraw, seg.fontFamily === 'Times');
+                const isSerif = (seg.fontFamily && seg.fontFamily.includes('Serif')) || seg.isSerif;
+                const isDev = seg.isDevanagari || /[\u0900-\u097F\u1CD0-\u1CFF\uA8E0-\uA8FF]/.test(textToDraw);
+                let chosenFont = null;
+
+                if (isDev) {
+                  const notoInfo = pickNotoFontForText(textToDraw, isSerif, !!seg.bold);
                   try {
-                    const notoFont = await getNotoFont(notoInfo.fileName);
-                    if (canFontEncode(notoFont, textToDraw)) {
-                      chosenFont = notoFont;
-                    }
+                    chosenFont = await getNotoFont(notoInfo.fileName);
                   } catch (e) {
-                    console.warn('Noto font embed failed:', e);
+                    console.warn('Devanagari font embed failed:', e);
                   }
                 }
 
-                // If still cannot encode, fallback toast
-                if (!canFontEncode(chosenFont, textToDraw)) {
-                  toast(`Characters in "${textToDraw.slice(0, 15)}" require flatten mode. Saving with flatten fallback.`, 'warning');
+                if (!chosenFont) {
+                  chosenFont = await getStdFont(seg.fontFamily, seg.bold, seg.italic);
+                  if (!canFontEncode(chosenFont, textToDraw)) {
+                    const notoInfo = pickNotoFontForText(textToDraw, isSerif, !!seg.bold);
+                    try {
+                      const notoFont = await getNotoFont(notoInfo.fileName);
+                      if (canFontEncode(notoFont, textToDraw)) {
+                        chosenFont = notoFont;
+                      }
+                    } catch (e) {
+                      console.warn('Noto font embed failed:', e);
+                    }
+                  }
+                }
+
+                let drawAsImage = false;
+                if (!chosenFont || !canFontEncode(chosenFont, textToDraw)) {
+                  drawAsImage = true;
+                }
+
+                if (drawAsImage) {
+                  // Fallback: render through high-DPI canvas as crisp PNG
+                  try {
+                    const dpr = 4;
+                    const offscreen = document.createElement('canvas');
+                    const oCtx = offscreen.getContext('2d');
+                    const fontSizePx = seg.fontSize * dpr;
+                    const fontStyle = `${seg.italic ? 'italic ' : ''}${seg.bold ? 'bold ' : ''}${fontSizePx}px ${seg.cssFamily}`;
+                    oCtx.font = fontStyle;
+                    const metrics = oCtx.measureText(textToDraw);
+                    const w = Math.max(1, Math.ceil(metrics.width + 16 * dpr));
+                    const h = Math.max(1, Math.ceil(fontSizePx * 1.6));
+                    offscreen.width = w;
+                    offscreen.height = h;
+
+                    oCtx.font = fontStyle;
+                    oCtx.fillStyle = seg.color || '#000000';
+                    oCtx.textBaseline = 'alphabetic';
+                    const baselineY = fontSizePx * 1.15;
+                    oCtx.fillText(textToDraw, 8 * dpr, baselineY);
+
+                    const b64 = offscreen.toDataURL('image/png').split(',')[1];
+                    const pngBytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+                    const embeddedPng = await outPdf.embedPng(pngBytes);
+                    const drawW = w / dpr;
+                    const drawH = h / dpr;
+                    outPage.drawImage(embeddedPng, {
+                      x: seg.x - 8,
+                      y: seg.baselineY - (baselineY / dpr),
+                      width: drawW,
+                      height: drawH,
+                      rotate: degrees(seg.angleDeg),
+                    });
+                    toast('Devanagari text rendered as high-resolution image.', 'info');
+                  } catch (e) {
+                    console.error('Image fallback failed:', e);
+                  }
                 } else {
                   const lines = textToDraw.split(/\r?\n/);
-                  const lineSpacing = seg.lineSpacing || 1.25;
+                  const lineSpacing = seg.lineSpacing || (isDev ? 1.45 : 1.25);
 
                   for (let li = 0; li < lines.length; li++) {
                     const line = lines[li];
@@ -3263,12 +3817,47 @@ function makeSortable(list, getItems, onReorder) {
 })();
 
 /* ════════════════════════════════════════════════════════════
-   PWA SERVICE WORKER REGISTRATION
+   PWA SERVICE WORKER REGISTRATION & INSTALL PROMPT
    ════════════════════════════════════════════════════════════ */
+let deferredInstallPrompt = null;
+const pwaInstallBtn = document.getElementById('pwa-install-btn');
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if (pwaInstallBtn) {
+    pwaInstallBtn.style.display = 'inline-flex';
+  }
+});
+
+if (pwaInstallBtn) {
+  pwaInstallBtn.addEventListener('click', async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+    if (outcome === 'accepted') {
+      toast('Pdfme installed to your device!', 'success');
+    }
+    deferredInstallPrompt = null;
+    pwaInstallBtn.style.display = 'none';
+  });
+}
+
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  if (pwaInstallBtn) pwaInstallBtn.style.display = 'none';
+  toast('Welcome to Pdfme Chrome App!', 'success');
+});
+
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
+  const registerSW = () => {
     navigator.serviceWorker.register('/sw.js').catch(err => {
       console.warn('SW registration failed:', err);
     });
-  });
+  };
+  if (document.readyState === 'complete') {
+    registerSW();
+  } else {
+    window.addEventListener('load', registerSW);
+  }
 }

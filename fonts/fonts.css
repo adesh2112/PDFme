@@ -29,13 +29,6 @@
   src: url('/fonts/NotoSerif-Regular.ttf') format('truetype');
 }
 @font-face {
-  font-family: 'Noto Sans Devanagari';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/NotoSansDevanagari-Regular.ttf') format('truetype');
-}
-@font-face {
   font-family: 'Noto Sans Arabic';
   font-style: normal;
   font-weight: 400;
