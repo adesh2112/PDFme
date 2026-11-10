@@ -25,12 +25,20 @@ const MIME = {
   '.gz': 'application/gzip',
 };
 
-function isAllowedOrigin(origin) {
+function isAllowedOrigin(origin, hostHeader) {
   if (!origin) return true; // same-origin, curl, server-to-server
   try {
     const url = new URL(origin);
     const host = url.hostname;
     const port = url.port;
+
+    // Allow same-origin requests matching request Host header
+    if (hostHeader) {
+      const cleanHost = hostHeader.split(':')[0].toLowerCase();
+      if (host.toLowerCase() === cleanHost) {
+        return true;
+      }
+    }
 
     // Allow local development on ports 51002 and 8080
     if ((host === 'localhost' || host === '127.0.0.1') && (port === '51002' || port === '8080')) {
@@ -59,7 +67,8 @@ function isAllowedOrigin(origin) {
 
 const server = http.createServer((req, res) => {
   const origin = req.headers['origin'];
-  const allowed = isAllowedOrigin(origin);
+  const hostHeader = req.headers['x-forwarded-host'] || req.headers['host'];
+  const allowed = isAllowedOrigin(origin, hostHeader);
 
   if (allowed) {
     if (origin) {

@@ -76,31 +76,32 @@ npm test
 
 ## Deploying to Render
 
-PDFme includes a validated `render.yaml` infrastructure blueprint.
+PDFme includes a validated `render.yaml` Infrastructure Blueprint configured for single-service deployment with an attached managed database.
 
-### 1. Render Web Service (Backend)
-- **Runtime:** `Node`
-- **Root Directory:** `.`
-- **Build Command:** `npm install --production`
-- **Start Command:** `node server.js`
-- **Health Check Path:** `/api/health`
-- **Environment Variables to Set:**
-  - `NODE_ENV`: `production`
-  - `PORT`: `10000`
-  - `DATABASE_URL`: Connection string from your hosted PostgreSQL (e.g. Neon or Render Postgres)
-  - `SESSION_SECRET`: A secure random 64-character string
-  - `RAZORPAY_KEY_ID`: `rzp_test_...`
-  - `RAZORPAY_KEY_SECRET`: Razorpay secret
-  - `RAZORPAY_WEBHOOK_SECRET`: Webhook secret
+### Blueprint Resources (Exactly 2 Resources)
 
-### 2. Render Static Site (Frontend, Optional if hosting separately)
-- **Publish Directory:** `.`
-- **Build Command:** *(Leave empty)*
-- **Rewrite Rules:**
-  - `/api/*` &rarr; `https://<your-backend-service>.onrender.com/api/*`
-  - `/health` &rarr; `https://<your-backend-service>.onrender.com/health`
+1. **Managed PostgreSQL Database (`pdfme-db`):**
+   - **Database Name:** `pdfme`
+   - **User:** `pdfme_user`
+   - **Plan:** `free`
 
-Alternatively, set `<meta name="pdfme-api-url" content="https://<your-backend>.onrender.com">` in `index.html`.
+2. **Unified Node.js Web Service (`pdfme`):**
+   - **Runtime:** `node`
+   - **Build Command:** `npm install`
+   - **Start Command:** `npm start`
+   - **Health Check Path:** `/api/health`
+   - **Architecture:** Serves the frontend static client and the backend `/api/*` routes from a single unified server instance. The frontend interacts with backend endpoints via relative URLs on the same origin, removing any need for external CORS or base URL configurations in production.
+   - **PORT:** The server automatically binds to the `PORT` assigned by Render's environment (`process.env.PORT`).
+
+### Environment Variable Management
+
+All environment variables in `render.yaml` are zero-leak by design:
+- `DATABASE_URL`: Automatically populated via `fromDatabase` (`pdfme-db` connectionString).
+- `SESSION_SECRET`: Automatically generated cryptographically secure secret via `generateValue: true`.
+- `RAZORPAY_KEY_ID`: Declared by name with `sync: false` (Render prompts for value in dashboard).
+- `RAZORPAY_KEY_SECRET`: Declared by name with `sync: false` (Render prompts for value in dashboard).
+- `RAZORPAY_WEBHOOK_SECRET`: Declared by name with `sync: false` (Render prompts for value in dashboard).
+- `GEMINI_API_KEY`: Declared by name with `sync: false` (Render prompts for value in dashboard).
 
 ---
 

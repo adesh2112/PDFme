@@ -1,7 +1,4 @@
-# Render Infrastructure Blueprint for PDFme
-# Defines a managed PostgreSQL database, Node.js/Express Web Service (Backend),
-# and a Render Static Site (Frontend) with automated /api/* proxy rewrite.
-
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
 databases:
   - name: pdfme-db
     databaseName: pdfme
@@ -9,24 +6,20 @@ databases:
     plan: free
 
 services:
-  # 1. PDFme Backend API Web Service
   - type: web
-    name: pdfme-backend
-    env: node
+    name: pdfme
+    runtime: node
     plan: free
-    buildCommand: npm install --production
-    startCommand: node server.js
+    buildCommand: npm install
+    startCommand: npm start
     healthCheckPath: /api/health
-    autoDeploy: true
     envVars:
-      - key: NODE_ENV
-        value: production
-      - key: PORT
-        value: 10000
       - key: DATABASE_URL
         fromDatabase:
           name: pdfme-db
           property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
       - key: RAZORPAY_KEY_ID
         sync: false
       - key: RAZORPAY_KEY_SECRET
@@ -35,19 +28,3 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-
-  # 2. PDFme Frontend Static Site
-  - type: static
-    name: pdfme-frontend
-    buildCommand: "" # Static assets served directly from repo root
-    publishPath: .
-    autoDeploy: true
-    routes:
-      # Proxy all API requests to the backend web service
-      - type: rewrite
-        source: /api/*
-        destination: https://pdfme-backend.onrender.com/api/*
-      - type: rewrite
-        source: /health
-        destination: https://pdfme-backend.onrender.com/health
-

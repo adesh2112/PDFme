@@ -23,12 +23,16 @@ const {
 
 const SESSION_SECRET = process.env.SESSION_SECRET || 'pdfme_session_secret_key_prod_2026';
 
-function isAllowedOrigin(origin) {
+function isAllowedOrigin(origin, hostHeader) {
   if (!origin) return true;
   try {
     const url = new URL(origin);
     const host = url.hostname;
     const port = url.port;
+    if (hostHeader) {
+      const cleanHost = hostHeader.split(':')[0].toLowerCase();
+      if (host.toLowerCase() === cleanHost) return true;
+    }
     if ((host === 'localhost' || host === '127.0.0.1') && (port === '51002' || port === '8080')) return true;
     if (host.endsWith('.onrender.com')) return true;
     const custom = process.env.ALLOWED_ORIGINS || process.env.FRONTEND_URL;
@@ -161,7 +165,8 @@ function logActivity(orgId, userId, action, target) {
  */
 async function handleWorkspaceRequest(req, res, pathName, body) {
   const origin = req.headers['origin'];
-  const allowed = isAllowedOrigin(origin);
+  const hostHeader = req.headers['x-forwarded-host'] || req.headers['host'];
+  const allowed = isAllowedOrigin(origin, hostHeader);
 
   // Helper for JSON responses with proper CORS and Cookies
   const sendJson = (status, obj, extraHeaders = {}) => {
