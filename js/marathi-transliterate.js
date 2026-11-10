@@ -65,3 +65,4 @@ if (typeof module !== 'undefined' && module.exports) {
 if (typeof window !== 'undefined') {
   window.MarathiPhonetic = { transliterateMarathi, MARATHI_DICTIONARY };
 }
+
