@@ -2478,34 +2478,37 @@ function makeSortable(list, getItems, onReorder) {
     const screenAngleDeg = screenAngle * (180 / Math.PI);
 
     const screenFontSize = seg.fontSize * screenScale;
-    const screenWidth = Math.max(seg.width * screenScale, 8);
-    const screenAscent = screenFontSize * 0.82;
-    const screenHeight = screenFontSize * (seg.isDevanagari ? 1.45 : 1.18);
+    const isMarathiOrDevanagari = seg.isDevanagari || seg.lang === 'mr' || /[\u0900-\u097F]/.test(seg.originalText);
+    const ascentRatio = isMarathiOrDevanagari ? 0.90 : 0.82;
+    const screenAscent = screenFontSize * ascentRatio;
+    const lineHeight = isMarathiOrDevanagari ? 1.45 : (seg.lineSpacing || 1.18);
+    const screenHeight = Math.max(screenFontSize * lineHeight, 14);
+    const screenWidth = Math.max(seg.width * screenScale + (isMarathiOrDevanagari ? 10 : 4), 16);
 
+    // True dynamic in-place text overlay: maintain locked 100% viewport zoom, exact bounding box, no magnification
     span.style.position = 'absolute';
-    span.style.left = `${p0[0]}px`;
-    span.style.top = `${p0[1] - screenAscent}px`;
-    span.style.minHeight = `${screenHeight}px`;
-    span.style.lineHeight = `${seg.isDevanagari ? 1.45 : (seg.lineSpacing || 1.15)}`;
-    span.style.fontFamily = seg.cssFamily;
+    span.style.left = `${Math.round(p0[0])}px`;
+    span.style.top = `${Math.round(p0[1] - screenAscent)}px`;
+    span.style.fontSize = `${screenFontSize}px`;
+    span.style.width = `${Math.round(screenWidth)}px`;
+    span.style.minHeight = `${Math.round(screenHeight)}px`;
+    span.style.lineHeight = `${lineHeight}`;
+    span.style.transformOrigin = '0 0';
+    span.style.transform = Math.abs(screenAngleDeg) > 0.05 ? `rotate(${screenAngleDeg}deg)` : 'none';
+    span.style.boxSizing = 'border-box';
+    span.style.overflow = 'visible';
+    span.style.whiteSpace = 'pre';
+    span.style.padding = isMarathiOrDevanagari ? '0 4px' : '0 1px';
 
-    // iOS zoom prevention: font must be at least 16px to prevent auto-zoom, scaled down visually
-    const minIOSSize = 16;
-    if (screenFontSize < minIOSSize) {
-      const scaleRatio = screenFontSize / minIOSSize;
-      span.style.fontSize = `${minIOSSize}px`;
-      span.style.transformOrigin = `0px ${screenAscent / scaleRatio}px`;
-      span.style.transform = `rotate(${screenAngleDeg}deg) scale(${scaleRatio})`;
-      span.style.width = `${screenWidth / scaleRatio}px`;
-    } else {
-      span.style.fontSize = `${screenFontSize}px`;
-      span.style.transformOrigin = `0px ${screenAscent}px`;
-      span.style.transform = `rotate(${screenAngleDeg}deg)`;
-      span.style.width = `${screenWidth}px`;
-    }
-
-    if (seg.isDevanagari || seg.lang === 'mr') {
+    if (isMarathiOrDevanagari) {
+      span.style.fontFamily = "'Noto Sans Devanagari', 'Nirmala UI', Mangal, 'Noto Sans', sans-serif";
       span.setAttribute('lang', 'mr');
+      span.setAttribute('dir', 'ltr');
+      span.style.fontFeatureSettings = '"kern" 1, "liga" 1';
+      span.style.wordBreak = 'keep-all';
+      span.classList.add('is-marathi');
+    } else {
+      span.style.fontFamily = seg.cssFamily;
     }
 
     span.style.fontWeight = seg.bold ? 'bold' : 'normal';

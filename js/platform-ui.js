@@ -103,6 +103,59 @@
     }
   };
 
+  // --- Sidebar Controller (Collapsible Desktop & Mobile Drawer) ---
+  window.toggleSidebar = function(forceState) {
+    const sidebar = document.getElementById('pdfme-sidebar');
+    const mainWrap = document.getElementById('pdfme-main-wrapper');
+    if (!sidebar) return;
+    if (typeof forceState === 'boolean') {
+      if (forceState) {
+        sidebar.classList.add('collapsed');
+        if (mainWrap) mainWrap.classList.add('sidebar-collapsed');
+      } else {
+        sidebar.classList.remove('collapsed');
+        if (mainWrap) mainWrap.classList.remove('sidebar-collapsed');
+      }
+    } else {
+      sidebar.classList.toggle('collapsed');
+      if (mainWrap) mainWrap.classList.toggle('sidebar-collapsed');
+    }
+  };
+
+  window.updateSidebarFolders = function(folders, docs, stats) {
+    const tree = document.getElementById('sidebar-folders-tree');
+    if (!tree) return;
+    const foldersList = Array.isArray(folders) ? folders : [];
+    const docCount = Array.isArray(docs) ? docs.length : 0;
+    
+    let html = `
+      <div class="sidebar-folder-item ${!currentWorkspaceFolderId ? 'active' : ''}" onclick="window.switchCategory('workspace'); if (typeof window.openWorkspaceFolder === 'function') window.openWorkspaceFolder(null, 'All Documents');">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        <span class="sidebar-folder-name">All Documents</span>
+        <span class="sidebar-folder-count">${docCount}</span>
+      </div>
+    `;
+
+    foldersList.forEach(f => {
+      const isSel = currentWorkspaceFolderId === f.id;
+      html += `
+        <div class="sidebar-folder-item ${isSel ? 'active' : ''}" onclick="window.switchCategory('workspace'); if (typeof window.openWorkspaceFolder === 'function') window.openWorkspaceFolder('${f.id}', '${escapeAttr(f.name)}');">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span class="sidebar-folder-name" title="${escapeAttr(f.name)}">${escapeHtml(f.name)}</span>
+          <span class="sidebar-folder-count">${f.documentCount || 0}</span>
+        </div>
+      `;
+    });
+
+    tree.innerHTML = html;
+
+    const meter = document.getElementById('sidebar-storage-text');
+    if (meter && stats) {
+      const mb = ((stats.totalBytesUsed || 0) / (1024 * 1024)).toFixed(1);
+      meter.textContent = `${mb} MB used`;
+    }
+  };
+
   // --- 3. Screen Switching ---
   const allScreenIds = [
     'screen-home',
@@ -172,6 +225,36 @@
     }
   };
 
+  // --- Tier Access Guard & Paywall System ---
+  function isUserSubscribed() {
+    const token = localStorage.getItem('pdfme-token');
+    if (!token) return false;
+    const user = currentUser || JSON.parse(localStorage.getItem('pdfme-user') || '{}');
+    if (user && (user.planTier === 'PRO' || user.planTier === 'ENTERPRISE' || user.isPro === true || (user.subscription && user.subscription.status === 'active'))) {
+      return true;
+    }
+    return false;
+  }
+  window.isUserSubscribed = isUserSubscribed;
+
+  window.openPaywallModal = function(toolId, toolName) {
+    const modal = document.getElementById('paywall-modal-backdrop');
+    if (!modal) return;
+    const titleEl = document.getElementById('paywall-tool-title');
+    const descEl = document.getElementById('paywall-tool-desc');
+    const name = toolName || toolId || 'Premium Tool';
+    if (titleEl) titleEl.textContent = `Unlock ${name}`;
+    if (descEl) descEl.textContent = `${name} is an advanced feature included in PDFme Pro. Subscribe today to unlock unlimited conversions, OCR scanning, AI Document tools, and enterprise cloud workspace storage.`;
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  };
+
+  window.closePaywallModal = function() {
+    const modal = document.getElementById('paywall-modal-backdrop');
+    if (modal) modal.classList.remove('active');
+    document.body.style.overflow = '';
+  };
+
   // --- 5. Authentication System (SECTION 4) ---
   window.openAuthModal = function(tab = 'signin', redirect = null) {
     authRedirectTarget = redirect;
@@ -227,10 +310,11 @@
     const stored = localStorage.getItem('pdfme_api_url');
     if (stored && stored.trim()) return stored.trim().replace(/\/$/, '');
 
-    // In local development, if running on a non-backend port (like 51002 or Live Server),
-    // point to the local Node backend on port 8080!
+    // In local development, if running on a known static dev server port (like 5500 Live Server, 5173 Vite, or 51002),
+    // point to the local Node backend on port 8080. Otherwise, use the current origin serving the app.
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    if (isLocal && window.location.port && window.location.port !== '8080') {
+    const staticDevPorts = ['5500', '5173', '51002', '3001'];
+    if (isLocal && staticDevPorts.includes(window.location.port)) {
       return `${window.location.protocol}//${window.location.hostname}:8080`;
     }
 
@@ -359,8 +443,17 @@
       const errMsg = data?.error || data?.message || `Request failed (${res.status})`;
       throw new Error(errMsg);
     }
+    if (data && typeof data === 'object') {
+      try {
+        Object.defineProperty(data, 'ok', { value: true, enumerable: false, configurable: true });
+        Object.defineProperty(data, 'status', { value: res.status, enumerable: false, configurable: true });
+        Object.defineProperty(data, 'json', { value: async () => data, enumerable: false, configurable: true });
+        Object.defineProperty(data, 'text', { value: async () => JSON.stringify(data), enumerable: false, configurable: true });
+      } catch (e) {}
+    }
     return data;
   }
+  window.apiFetch = apiFetch;
 
   function setBtnLoading(btnId, isLoading, text) {
     const btn = document.getElementById(btnId);
@@ -766,22 +859,27 @@
   window.refreshWorkspaceData = async function() {
     const token = localStorage.getItem('pdfme-token');
     if (!token) {
+      window.currentWorkspaceFolders = [];
+      window.currentWorkspaceDocs = [];
       renderLoggedOutWorkspace();
       return;
     }
 
     window.updateSavingStatus('saving');
     try {
-      const res = await fetch('/api/workspace/sync', {
+      const data = await apiFetch('/api/workspace/sync', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!res.ok) throw new Error('Sync failed');
-      const data = await res.json();
       lastWorkspaceData = data;
 
       currentUser = data.user;
+      window.currentWorkspaceFolders = data.folders || [];
+      window.currentWorkspaceDocs = data.documents || [];
       updateAuthUI(currentUser);
       renderWorkspaceUI(data);
+      if (typeof window.updateSidebarFolders === 'function') {
+        window.updateSidebarFolders(data.folders, data.documents, data.stats);
+      }
       window.updateSavingStatus('saved');
     } catch (err) {
       console.warn('Workspace sync failed:', err);
@@ -829,13 +927,24 @@
               Plan: <strong style="color:var(--saas-accent);">${plan}</strong> · Storage: <strong>${mbUsed} MB</strong> used · Role: <strong>${data.user?.role || 'Admin'}</strong>
             </p>
           </div>
-          <div style="display:flex;gap:10px;align-items:center;">
-            <label class="btn btn-primary btn-sm" style="cursor:pointer;padding:8px 16px;border-radius:8px;">
-              + Upload PDF
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <label class="btn btn-primary btn-sm" style="cursor:pointer;padding:8px 16px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>+ Upload PDF</span>
               <input type="file" accept=".pdf" style="display:none;" onchange="handleWorkspaceFileUpload(event)">
             </label>
-            <button class="btn btn-ghost btn-sm" onclick="promptCreateFolder()" style="border:1px solid var(--border);">+ New Folder</button>
-            <button class="btn btn-ghost btn-sm" onclick="handleLogout()" style="color:var(--danger);">Sign Out</button>
+            <button class="btn btn-ghost btn-sm" onclick="promptCreateFolder()" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;border:1px solid var(--border);color:var(--text);font-weight:600;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                <line x1="12" y1="11" x2="12" y2="17"/>
+                <line x1="9" y1="14" x2="15" y2="14"/>
+              </svg>
+              <span>New Folder</span>
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="handleLogout()" style="color:var(--danger);display:inline-flex;align-items:center;gap:6px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              <span>Sign Out</span>
+            </button>
           </div>
         </div>
       </div>
@@ -958,22 +1067,32 @@
       panel.innerHTML = `
         ${activeWorkspaceTab === 'docs' ? `
           <div style="margin-bottom:28px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-              <h4 style="font-size:1rem;font-weight:700;display:flex;align-items:center;gap:6px;margin:0;">
-                <span>📁</span> Folders (${folders.length})
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+              <h4 style="font-size:1.05rem;font-weight:700;display:flex;align-items:center;gap:8px;margin:0;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--saas-accent);"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                <span>My Folders (${folders.length})</span>
               </h4>
-              <button class="btn btn-ghost btn-sm" onclick="promptCreateFolder()" style="font-size:0.8rem;padding:4px 12px;border:1px solid var(--border);">
-                + New Folder
+              <button class="btn btn-ghost btn-sm" onclick="promptCreateFolder()" style="display:inline-flex;align-items:center;gap:5px;font-size:0.8rem;padding:5px 12px;border:1px solid var(--border);border-radius:8px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>New Folder</span>
               </button>
             </div>
 
             ${folders.length === 0 ? `
-              <div style="padding:20px;background:var(--bg-elevated);border:1px dashed var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-                <div>
-                  <p style="font-size:0.9rem;font-weight:600;margin:0 0 2px;">No folders created yet</p>
-                  <p style="font-size:0.8rem;color:var(--text-muted);margin:0;">Create folders to organize your invoices, contracts, and confidential documents.</p>
+              <div style="padding:24px 20px;background:var(--bg-elevated);border:1px dashed var(--border);border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <div style="width:40px;height:40px;border-radius:10px;background:rgba(244,185,66,0.15);display:flex;align-items:center;justify-content:center;color:var(--saas-accent);flex-shrink:0;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                  </div>
+                  <div>
+                    <p style="font-size:0.9rem;font-weight:700;margin:0 0 2px;">No folders created yet</p>
+                    <p style="font-size:0.8rem;color:var(--text-muted);margin:0;">Create folders to organize your invoices, contracts, and confidential documents.</p>
+                  </div>
                 </div>
-                <button class="btn btn-ghost btn-sm" onclick="promptCreateFolder()" style="border:1px solid var(--border);white-space:nowrap;">+ Create First Folder</button>
+                <button class="btn btn-ghost btn-sm" onclick="promptCreateFolder()" style="display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:8px;padding:6px 14px;white-space:nowrap;font-weight:600;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  <span>Create First Folder</span>
+                </button>
               </div>
             ` : `
               <div class="workspace-folders-grid">
@@ -981,18 +1100,19 @@
                   const count = docs.filter(d => d.folderId === f.id).length;
                   return `
                     <div class="workspace-folder-card" onclick="openWorkspaceFolder('${f.id}')">
-                      <div style="display:flex;align-items:center;gap:12px;min-width:0;">
-                        <div class="folder-svg-icon" style="width:36px;height:36px;border-radius:8px;background:rgba(244,185,66,0.18);display:flex;align-items:center;justify-content:center;color:var(--saas-accent);flex-shrink:0;">
+                      <div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1;">
+                        <div class="folder-svg-icon" style="width:38px;height:38px;border-radius:10px;background:rgba(244,185,66,0.18);display:flex;align-items:center;justify-content:center;color:var(--saas-accent);flex-shrink:0;">
                           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                           </svg>
                         </div>
-                        <div style="min-width:0;">
+                        <div style="min-width:0;flex:1;">
                           <h4 style="font-size:0.925rem;font-weight:700;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeAttr(f.name)}">${escapeHtml(f.name)}</h4>
                           <span style="font-size:0.75rem;color:var(--text-muted);display:inline-block;margin-top:2px;">${count} ${count === 1 ? 'document' : 'documents'}</span>
                         </div>
                       </div>
-                      <div style="display:flex;gap:4px;flex-shrink:0;" onclick="event.stopPropagation()">
+                      <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;" onclick="event.stopPropagation()">
+                        <button class="btn btn-ghost btn-sm" title="Open Folder" onclick="openWorkspaceFolder('${f.id}')" style="padding:4px 8px;font-size:0.75rem;border:1px solid var(--border);border-radius:6px;">Open</button>
                         <button class="btn btn-ghost btn-sm" title="Rename Folder" onclick="promptRenameFolder('${f.id}', '${escapeAttr(f.name)}')" style="padding:4px 8px;font-size:0.75rem;border:1px solid var(--border);border-radius:6px;">✎</button>
                         <button class="btn btn-ghost btn-sm" title="Delete Folder" onclick="confirmDeleteFolder('${f.id}', '${escapeAttr(f.name)}')" style="padding:4px 8px;font-size:0.75rem;color:var(--danger);border:1px solid var(--border);border-radius:6px;">✕</button>
                       </div>
@@ -1093,6 +1213,12 @@
 
   // --- Folder Management & Modals ---
   window.promptCreateFolder = function() {
+    const token = localStorage.getItem('pdfme-token');
+    if (!token) {
+      if (typeof showToast === 'function') showToast('Please sign in to create persistent workspace folders.', 'info');
+      if (typeof window.openAuthModal === 'function') window.openAuthModal('signin', 'workspace');
+      return;
+    }
     const modal = document.getElementById('folder-modal-backdrop');
     if (!modal) return;
     const titleEl = document.getElementById('folder-modal-title');
@@ -1133,6 +1259,7 @@
   window.closeFolderModal = function() {
     const modal = document.getElementById('folder-modal-backdrop');
     if (modal) modal.classList.remove('active');
+    document.body.style.overflow = '';
   };
 
   window.handleFolderFormSubmit = async function(e) {
@@ -1140,6 +1267,7 @@
     const token = localStorage.getItem('pdfme-token');
     if (!token) {
       showToast('Please sign in to manage folders.', 'warning');
+      window.openAuthModal('signin');
       return;
     }
     const name = document.getElementById('folder-name-input')?.value?.trim();
@@ -1157,20 +1285,15 @@
     try {
       const endpoint = folderId ? '/api/workspace/folders/rename' : '/api/workspace/folders';
       const body = folderId ? { folderId, name } : { name };
-      const res = await fetch(endpoint, {
+      await apiFetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to save folder');
 
       window.closeFolderModal();
       showToast(folderId ? '✓ Folder renamed successfully' : '✓ Folder created successfully', 'success');
-      window.refreshWorkspaceData();
+      await window.refreshWorkspaceData();
     } catch (err) {
       if (errBox) {
         errBox.textContent = err.message || 'Operation failed';
@@ -1185,22 +1308,17 @@
     if (!token) return;
 
     try {
-      const res = await fetch('/api/workspace/folders/delete', {
+      await apiFetch('/api/workspace/folders/delete', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ folderId })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to delete folder');
 
       if (currentWorkspaceFolderId === folderId) {
         currentWorkspaceFolderId = null;
       }
       showToast('✓ Folder deleted successfully', 'info');
-      window.refreshWorkspaceData();
+      await window.refreshWorkspaceData();
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -1246,11 +1364,10 @@
     if (!token) return;
 
     try {
-      const res = await fetch('/api/workspace/documents/move', {
+      const res = await apiFetch('/api/workspace/documents/move', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ docId, folderId: targetFolderId })
       });
@@ -1273,13 +1390,11 @@
     const reader = new FileReader();
     reader.onload = async () => {
       try {
-        const token = localStorage.getItem('pdfme-token');
         const targetFolder = specificFolderId || currentWorkspaceFolderId || null;
-        const res = await fetch('/api/files/upload', {
+        const res = await apiFetch('/api/files/upload', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
             title: file.name,
@@ -1302,10 +1417,9 @@
   };
 
   window.toggleDocFavorite = async function(docId, isFavorite) {
-    const token = localStorage.getItem('pdfme-token');
-    await fetch('/api/workspace/documents/update', {
+    await apiFetch('/api/workspace/documents/update', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ docId, isFavorite })
     });
     window.refreshWorkspaceData();
@@ -1313,10 +1427,9 @@
 
   window.deleteCloudDoc = async function(docId) {
     if (!confirm('Are you sure you want to delete this document from your cloud account?')) return;
-    const token = localStorage.getItem('pdfme-token');
-    await fetch('/api/workspace/documents/delete', {
+    await apiFetch('/api/workspace/documents/delete', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ docId })
     });
     showToast('Document deleted.', 'info');
@@ -1325,36 +1438,373 @@
 
   window.cancelSubscription = async function() {
     if (!confirm('Cancel your subscription? You will retain access until the end of the billing cycle.')) return;
-    const token = localStorage.getItem('pdfme-token');
-    const res = await fetch('/api/subscription/cancel', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}` }
+    const res = await apiFetch('/api/subscription/cancel', {
+      method: 'POST'
     });
     const d = await res.json();
     showToast(d.message || 'Subscription cancelled.', 'info');
     window.refreshWorkspaceData();
   };
 
-  // --- 7. Search & Filter Tools ---
-  window.filterTools = function(query) {
+  // --- 7. Comprehensive Search Engine & Filter ---
+  const SEARCH_TOOLS_CATALOG = [
+    // Convert Tools
+    { id: 'pdf-to-word', name: 'PDF to Word (DOCX)', desc: 'Extract editable Microsoft Word DOCX from PDF', category: 'Convert', badge: 'Convert', tier: 'FREE', keywords: ['docx', 'word', 'doc', 'convert', 'extract', 'pdf to word'], action: () => window.openToolModal && window.openToolModal('pdf-to-word', 'PDF to Word (DOCX)') },
+    { id: 'word-to-pdf', name: 'Word (DOCX) to PDF', desc: 'Convert Microsoft Word documents to clean PDF', category: 'Convert', badge: 'Convert', tier: 'FREE', keywords: ['word', 'docx', 'doc', 'convert', 'word to pdf'], action: () => window.openToolModal && window.openToolModal('word-to-pdf', 'Word (DOCX) to PDF') },
+    { id: 'pdf-to-excel', name: 'PDF to Excel (XLSX)', desc: 'Extract tabular PDF data into Excel worksheets', category: 'Convert', badge: 'Convert', tier: 'FREE', keywords: ['excel', 'xlsx', 'xls', 'spreadsheet', 'table', 'pdf to excel'], action: () => window.openToolModal && window.openToolModal('pdf-to-excel', 'PDF to Excel (XLSX)') },
+    { id: 'excel-to-pdf', name: 'Excel (XLSX) to PDF', desc: 'Convert Excel spreadsheets to PDF documents', category: 'Convert', badge: 'Convert', tier: 'FREE', keywords: ['excel', 'xlsx', 'xls', 'spreadsheet', 'sheets', 'excel to pdf'], action: () => window.openToolModal && window.openToolModal('excel-to-pdf', 'Excel (XLSX) to PDF') },
+    { id: 'pdf-to-ppt', name: 'PDF to PowerPoint (PPTX)', desc: 'Convert PDF presentation slides to editable PPTX', category: 'Convert', badge: 'Convert', tier: 'FREE', keywords: ['powerpoint', 'pptx', 'ppt', 'slides', 'presentation', 'pdf to ppt'], action: () => window.openToolModal && window.openToolModal('pdf-to-ppt', 'PDF to PowerPoint (PPTX)') },
+    { id: 'pptx-to-pdf', name: 'PowerPoint to PDF', desc: 'Convert PowerPoint presentations to clean PDF', category: 'Convert', badge: 'Convert', tier: 'FREE', keywords: ['powerpoint', 'pptx', 'ppt', 'slides', 'ppt to pdf'], action: () => window.openToolModal && window.openToolModal('pptx-to-pdf', 'PowerPoint to PDF') },
+    { id: 'pdf-to-jpg', name: 'PDF to JPG', desc: 'Extract high-resolution JPG images from PDF pages', category: 'Convert', badge: 'Convert', tier: 'FREE', keywords: ['jpg', 'jpeg', 'image', 'photo', 'extract', 'pdf to jpg'], action: () => window.openToolModal && window.openToolModal('pdf-to-jpg', 'PDF to JPG') },
+    { id: 'pdf-to-png', name: 'PDF to PNG', desc: 'Extract crisp transparent PNG images from PDF pages', category: 'Convert', badge: 'Convert', tier: 'FREE', keywords: ['png', 'image', 'photo', 'transparent', 'pdf to png'], action: () => window.openToolModal && window.openToolModal('pdf-to-png', 'PDF to PNG') },
+    { id: 'jpg-to-pdf', name: 'JPG / Photo to PDF', desc: 'Convert JPG photos and images to clean PDF document', category: 'Convert', badge: 'Convert', tier: 'FREE', keywords: ['jpg', 'jpeg', 'photo', 'image', 'picture', 'jpg to pdf'], action: () => window.switchCategory ? window.switchCategory('photos') : (window.openToolModal && window.openToolModal('jpg-to-pdf', 'JPG to PDF')) },
+    { id: 'png-to-pdf', name: 'PNG to PDF', desc: 'Convert PNG graphics and illustrations to PDF document', category: 'Convert', badge: 'Convert', tier: 'FREE', keywords: ['png', 'graphics', 'image', 'convert', 'png to pdf'], action: () => window.openToolModal && window.openToolModal('png-to-pdf', 'PNG to PDF') },
+    { id: 'html-to-pdf', name: 'HTML to PDF', desc: 'Convert rich HTML markup and CSS into vector PDF', category: 'Convert', badge: 'Convert', tier: 'FREE', keywords: ['html', 'web', 'markup', 'code', 'render', 'html to pdf'], action: () => window.openToolModal && window.openToolModal('html-to-pdf', 'HTML to PDF') },
+
+    // Organise Tools
+    { id: 'merge-pdf', name: 'Merge PDF', desc: 'Combine multiple PDF documents into a single file', category: 'Organise', badge: 'Organise', tier: 'FREE', keywords: ['merge', 'combine', 'join', 'append', 'bind', 'merge pdf'], action: () => window.switchCategory ? window.switchCategory('merge') : (window.openToolModal && window.openToolModal('organize-pdf', 'Merge PDF')) },
+    { id: 'split-pdf', name: 'Split PDF', desc: 'Extract page ranges or separate PDF into individual files', category: 'Organise', badge: 'Organise', tier: 'FREE', keywords: ['split', 'separate', 'divide', 'cut', 'extract pages', 'split pdf'], action: () => window.openToolModal && window.openToolModal('split-pdf', 'Split PDF') },
+    { id: 'reorder-pdf', name: 'Reorder PDF Pages', desc: 'Drag, reorder, sort and rearrange pages in any order', category: 'Organise', badge: 'Organise', tier: 'FREE', keywords: ['reorder', 'rearrange', 'sort', 'organize', 'pages', 'reorder pdf'], action: () => window.openToolModal && window.openToolModal('reorder-pdf', 'Reorder Pages') },
+    { id: 'delete-pages', name: 'Delete PDF Pages', desc: 'Select and remove unwanted or blank pages from PDF', category: 'Organise', badge: 'Organise', tier: 'FREE', keywords: ['delete', 'remove', 'discard', 'pages', 'delete pages'], action: () => window.openToolModal && window.openToolModal('delete-pages', 'Delete PDF Pages') },
+    { id: 'extract-pages', name: 'Extract PDF Pages', desc: 'Extract selected pages into a brand new PDF document', category: 'Organise', badge: 'Organise', tier: 'FREE', keywords: ['extract', 'select', 'pull', 'export pages', 'extract pages'], action: () => window.openToolModal && window.openToolModal('extract-pages', 'Extract PDF Pages') },
+    { id: 'rotate-pdf', name: 'Rotate PDF', desc: 'Rotate PDF pages 90, 180, or 270 degrees clockwise', category: 'Organise', badge: 'Organise', tier: 'FREE', keywords: ['rotate', 'turn', 'orientation', 'landscape', 'portrait', 'rotate pdf'], action: () => window.openToolModal && window.openToolModal('rotate-pdf', 'Rotate PDF') },
+    { id: 'page-numbers', name: 'Add Page Numbers', desc: 'Insert custom headers, footers and page numbering', category: 'Organise', badge: 'Organise', tier: 'FREE', keywords: ['numbers', 'paginate', 'header', 'footer', 'page numbers'], action: () => window.openToolModal && window.openToolModal('page-numbers', 'Add Page Numbers') },
+    { id: 'crop-pdf', name: 'Crop PDF', desc: 'Trim page margins and adjust visible dimensions', category: 'Organise', badge: 'Organise', tier: 'FREE', keywords: ['crop', 'trim', 'cut', 'margins', 'resize', 'crop pdf'], action: () => window.openToolModal && window.openToolModal('crop-pdf', 'Crop PDF') },
+    { id: 'compress-pdf', name: 'Compress PDF', desc: 'Reduce PDF file size with stream compression', category: 'Organise', badge: 'Organise', tier: 'FREE', keywords: ['compress', 'reduce', 'shrink', 'smaller', 'optimize', 'compress pdf'], action: () => window.openToolModal && window.openToolModal('compress-pdf', 'Compress PDF') },
+
+    // Edit Tools
+    { id: 'edit-pdf', name: 'Edit PDF', desc: 'In-place editor to modify text, Marathi script, shapes & annotations', category: 'Edit', badge: 'Editor', tier: 'FREE', keywords: ['edit', 'draw', 'text', 'annotate', 'signature', 'mark', 'marathi', 'edit pdf'], action: () => window.switchCategory && window.switchCategory('edit') },
+
+    // AI PDF Tools
+    { id: 'ai-assistant', name: 'AI PDF Assistant', desc: 'Interactive chat copilot for deep analysis and document guidance', category: 'AI Tools', badge: 'AI', tier: 'PREMIUM', keywords: ['ai', 'copilot', 'assistant', 'chat', 'ask', 'prompt', 'ai assistant'], action: () => window.openToolModal && window.openToolModal('ai-assistant', 'AI PDF Assistant') },
+    { id: 'ai-summarizer', name: 'AI Document Summarizer', desc: 'Instant executive summaries, bullet points, and key takeaways', category: 'AI Tools', badge: 'AI', tier: 'PREMIUM', keywords: ['summarize', 'summary', 'brief', 'key points', 'ai', 'ai summarizer', 'summarizer'], action: () => window.openToolModal && window.openToolModal('ai-summarizer', 'AI Document Summarizer') },
+    { id: 'ai-translator', name: 'AI Document Translator', desc: 'Translate document text across 20+ languages preserving layout', category: 'AI Tools', badge: 'AI', tier: 'PREMIUM', keywords: ['translate', 'translator', 'language', 'marathi', 'hindi', 'multilingual'], action: () => window.openToolModal && window.openToolModal('ai-translator', 'AI Document Translator') },
+    { id: 'ocr-pdf', name: 'OCR Scanner & Searchable PDF', desc: 'Convert scanned PDFs and images into searchable, selectable text', category: 'AI Tools', badge: 'AI', tier: 'PREMIUM', keywords: ['ocr', 'scanner', 'searchable', 'optical', 'recognize', 'text layer'], action: () => window.openToolModal && window.openToolModal('ocr-pdf', 'OCR Scanner & Searchable PDF') },
+    { id: 'ai-contract', name: 'Contract Analyzer', desc: 'Review legal agreements, detect risks, indemnity, and key obligations', category: 'AI Tools', badge: 'AI', tier: 'PREMIUM', keywords: ['contract', 'legal', 'agreements', 'clauses', 'risk', 'nda', 'contract analyzer'], action: () => window.openToolModal && window.openToolModal('ai-contract', 'Contract Analyzer') },
+    { id: 'doc-compare', name: 'Document Comparison', desc: 'Compare two PDFs and highlight additions, deletions and text changes', category: 'AI Tools', badge: 'AI', tier: 'PREMIUM', keywords: ['compare', 'diff', 'difference', 'version', 'changes', 'document comparison'], action: () => window.openToolModal && window.openToolModal('doc-compare', 'Document Comparison') },
+    { id: 'invoice-extractor', name: 'Invoice Extractor', desc: 'Extract structured vendor, tax, amount and line-item data into JSON', category: 'AI Tools', badge: 'AI', tier: 'PREMIUM', keywords: ['invoice', 'bill', 'receipt', 'tax', 'extract', 'tables', 'invoice extractor'], action: () => window.openToolModal && window.openToolModal('invoice-extractor', 'Invoice Data Extractor') },
+    { id: 'ai-chat', name: 'Chat with PDF', desc: 'Interactive conversation with any PDF document with source citations', category: 'AI Tools', badge: 'AI', tier: 'PREMIUM', keywords: ['chat', 'talk', 'converse', 'ask questions', 'ai', 'chat with pdf'], action: () => window.openToolModal && window.openToolModal('ai-chat', 'Chat with PDF') },
+    { id: 'ai-qa', name: 'PDF Q&A', desc: 'Get direct factual answers to specific questions from document pages', category: 'AI Tools', badge: 'AI', tier: 'PREMIUM', keywords: ['qa', 'q&a', 'questions', 'answers', 'query', 'search', 'ask questions'], action: () => window.openToolModal && window.openToolModal('ai-qa', 'PDF Question & Answer') },
+    { id: 'ai-extract', name: 'Information Extraction', desc: 'Pull key entities, dates, dollar amounts, and contact details', category: 'AI Tools', badge: 'AI', tier: 'PREMIUM', keywords: ['extract', 'entities', 'names', 'dates', 'amounts', 'regex', 'information extraction'], action: () => window.openToolModal && window.openToolModal('ai-extract', 'Information Extraction') },
+    { id: 'ai-insights', name: 'Document Insights', desc: 'Semantic sentiment, reading complexity, and thematic insights', category: 'AI Tools', badge: 'AI', tier: 'PREMIUM', keywords: ['insights', 'themes', 'analytics', 'semantic', 'sentiment', 'document insights'], action: () => window.openToolModal && window.openToolModal('ai-insights', 'Document Insights') },
+    { id: 'ai-multi', name: 'Multi-PDF Analysis', desc: 'Cross-document synthesis and comparative insights across files', category: 'AI Tools', badge: 'AI', tier: 'PREMIUM', keywords: ['multi', 'multiple', 'cross', 'batch', 'synthesis', 'multi pdf'], action: () => window.openToolModal && window.openToolModal('ai-multi', 'Multi-PDF Analysis') },
+    { id: 'ai-exec-summary', name: 'Executive Summary', desc: 'High-level strategic briefing and executive decision support', category: 'AI Tools', badge: 'AI', tier: 'PREMIUM', keywords: ['executive', 'strategic', 'briefing', 'decision', 'c-level', 'executive summary'], action: () => window.openToolModal && window.openToolModal('ai-exec-summary', 'Executive Summary') },
+
+    // PDF Security Tools
+    { id: 'password-protect', name: 'Password Protect PDF', desc: 'Encrypt document with 256-bit AES encryption & restrict permissions', category: 'Security', badge: 'Security', tier: 'FREE', keywords: ['password', 'protect', 'encrypt', 'lock', 'security', 'aes', 'protect pdf', 'password protect'], action: () => window.openToolModal && window.openToolModal('password-protect', 'Password Protect PDF') },
+    { id: 'unlock-pdf', name: 'Unlock PDF', desc: 'Remove password protection and printing/editing restrictions', category: 'Security', badge: 'Security', tier: 'FREE', keywords: ['unlock', 'decrypt', 'remove password', 'open', 'unlock pdf'], action: () => window.openToolModal && window.openToolModal('unlock-pdf', 'Unlock PDF') },
+    { id: 'watermark-pdf', name: 'Watermark PDF', desc: 'Stamp custom text or image watermarks across all pages', category: 'Security', badge: 'Security', tier: 'FREE', keywords: ['watermark', 'stamp', 'confidential', 'draft', 'logo', 'watermark pdf'], action: () => window.openToolModal && window.openToolModal('watermark-pdf', 'Watermark PDF') },
+    { id: 'esign', name: 'E-Signature Workflow', desc: 'Sign PDFs digitally with audit trail and signer tracking', category: 'Security', badge: 'Security', tier: 'FREE', keywords: ['esign', 'sign', 'signature', 'digital signature', 'contract'], action: () => window.openToolModal && window.openToolModal('esign', 'E-Signature Workflow') },
+    { id: 'remove-metadata', name: 'Sanitize Metadata', desc: 'Strip author, software, GPS and revision history from PDF', category: 'Security', badge: 'Security', tier: 'FREE', keywords: ['metadata', 'sanitize', 'clean', 'strip', 'privacy', 'hidden', 'remove metadata'], action: () => window.openToolModal && window.openToolModal('remove-metadata', 'Sanitize Metadata') },
+
+    // Business Tools
+    { id: 'gen-invoice', name: 'Invoice Generator', desc: 'Create GST-compliant invoices with line items, tax and discounts', category: 'Business', badge: 'Business', tier: 'BUSINESS', keywords: ['invoice', 'bill', 'billing', 'gst', 'tax', 'receipt', 'invoice generator'], action: () => window.openToolModal && window.openToolModal('gen-invoice', 'Invoice Generator') },
+    { id: 'gen-offer', name: 'Offer Letter Generator', desc: 'Create job offer letters with salary breakdown and terms', category: 'Business', badge: 'Business', tier: 'BUSINESS', keywords: ['offer', 'letter', 'hr', 'job', 'employment', 'salary', 'offer letter'], action: () => window.openToolModal && window.openToolModal('gen-offer', 'Offer Letter Generator') },
+    { id: 'gen-payslip', name: 'Salary Slip Generator', desc: 'Generate monthly salary payslips with allowances and deductions', category: 'Business', badge: 'Business', tier: 'BUSINESS', keywords: ['payslip', 'salary', 'payroll', 'wages', 'earnings', 'salary slip'], action: () => window.openToolModal && window.openToolModal('gen-payslip', 'Salary Slip Generator') },
+    { id: 'gen-exp-cert', name: 'Experience Certificate', desc: 'Issue verifiable work experience and relieving letters', category: 'Business', badge: 'Business', tier: 'BUSINESS', keywords: ['experience', 'certificate', 'relieving', 'service', 'employment'], action: () => window.openToolModal && window.openToolModal('gen-exp-cert', 'Experience Certificate') },
+    { id: 'gen-bulk', name: 'Bulk Document Generator', desc: 'Batch generate certificates and letters from CSV spreadsheets', category: 'Business', badge: 'Business', tier: 'BUSINESS', keywords: ['bulk', 'batch', 'csv', 'mail merge', 'generate', 'multiple', 'bulk generator'], action: () => window.openToolModal && window.openToolModal('gen-bulk', 'Bulk Document Generator') },
+    { id: 'repair-pdf', name: 'PDF Repair', desc: 'Rebuild damaged cross-reference tables and recover salvageable PDF contents', category: 'Business', badge: 'Utility', tier: 'FREE', keywords: ['repair', 'fix', 'recover', 'corrupt', 'damaged', 'xref', 'pdf repair'], action: () => window.openToolModal && window.openToolModal('repair-pdf', 'PDF Repair') },
+    { id: 'flatten-pdf', name: 'Flatten PDF', desc: 'Flatten all interactive form fields, signatures, and annotations into static page graphics', category: 'Business', badge: 'Utility', tier: 'FREE', keywords: ['flatten', 'forms', 'annotations', 'lock', 'static', 'flatten pdf'], action: () => window.openToolModal && window.openToolModal('flatten-pdf', 'Flatten PDF') }
+  ];
+
+  let currentSearchResults = [];
+  let selectedResultIndex = -1;
+  let searchDebounceTimer = null;
+
+  function getSearchableWorkspaceItems() {
+    const items = [];
+    if (Array.isArray(window.currentWorkspaceFolders)) {
+      window.currentWorkspaceFolders.forEach(folder => {
+        items.push({
+          id: `folder-${folder.id}`,
+          name: folder.name,
+          desc: `Workspace Folder (${folder.documentCount || 0} documents)`,
+          category: 'Workspace',
+          badge: 'Folder',
+          keywords: ['folder', 'directory', folder.name.toLowerCase()],
+          action: () => {
+            if (window.switchCategory) window.switchCategory('workspace');
+            if (window.openWorkspaceFolder) window.openWorkspaceFolder(folder.id, folder.name);
+          }
+        });
+      });
+    }
+    if (Array.isArray(window.currentWorkspaceDocs)) {
+      window.currentWorkspaceDocs.forEach(doc => {
+        items.push({
+          id: `doc-${doc.id}`,
+          name: doc.title || 'Untitled Document',
+          desc: `Workspace Document · ${doc.size ? Math.round(doc.size / 1024) + ' KB' : 'PDF'}`,
+          category: 'Workspace',
+          badge: 'Document',
+          keywords: ['document', 'file', 'doc', (doc.title || '').toLowerCase()],
+          action: () => {
+            if (window.switchCategory) window.switchCategory('workspace');
+            if (doc.url) window.open(doc.url, '_blank');
+          }
+        });
+      });
+    }
+    return items;
+  }
+
+  function highlightMatches(text, query) {
+    if (!query) return escapeHtml(text);
+    const words = query.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return escapeHtml(text);
+    const escapedWords = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+    const regex = new RegExp(`(${escapedWords})`, 'gi');
+    return escapeHtml(text).replace(regex, '<mark style="background:rgba(244,185,66,0.35);color:inherit;padding:0 2px;border-radius:2px;">$1</mark>');
+  }
+
+  function executeToolSearch(query, activeMode = 'desktop') {
     const q = (query || '').toLowerCase().trim();
+    const words = q.split(/\s+/).filter(Boolean);
+    const dropdownDesktop = document.getElementById('saas-search-dropdown');
+    const dropdownMobile = document.getElementById('saas-search-dropdown-mobile');
+    const clearDesktop = document.getElementById('saas-search-clear');
+    const clearMobile = document.getElementById('saas-search-clear-mobile');
+
+    if (clearDesktop) clearDesktop.style.display = q ? 'flex' : 'none';
+    if (clearMobile) clearMobile.style.display = q ? 'flex' : 'none';
+
+    // Filter page cards simultaneously
     document.querySelectorAll('.saas-tool-card').forEach(card => {
       const title = (card.querySelector('.saas-tool-name')?.textContent || '').toLowerCase();
       const desc = (card.querySelector('.saas-tool-desc')?.textContent || '').toLowerCase();
-      if (!q || title.includes(q) || desc.includes(q)) {
+      const text = `${title} ${desc}`;
+      const matches = !q || text.includes(q) || (words.length > 0 && words.every(w => text.includes(w)));
+      if (matches) {
         card.style.display = 'flex';
       } else {
         card.style.display = 'none';
       }
     });
+
+    if (!q) {
+      if (dropdownDesktop) { dropdownDesktop.classList.remove('active'); dropdownDesktop.innerHTML = ''; }
+      if (dropdownMobile) { dropdownMobile.classList.remove('active'); dropdownMobile.innerHTML = ''; }
+      currentSearchResults = [];
+      selectedResultIndex = -1;
+      return;
+    }
+
+    const allItems = [...SEARCH_TOOLS_CATALOG, ...getSearchableWorkspaceItems()];
+
+    // Score and filter matches
+    const scored = [];
+    allItems.forEach(item => {
+      const nameLower = item.name.toLowerCase();
+      const descLower = item.desc.toLowerCase();
+      const catLower = item.category.toLowerCase();
+      const kw = item.keywords || [];
+      const combined = `${nameLower} ${descLower} ${catLower} ${kw.join(' ')}`;
+
+      let score = 0;
+      if (nameLower === q) score += 100;
+      else if (nameLower.startsWith(q)) score += 60;
+      else if (nameLower.includes(q)) score += 40;
+
+      if (kw.some(k => k === q)) score += 30;
+      else if (kw.some(k => k.includes(q))) score += 15;
+
+      if (descLower.includes(q)) score += 10;
+      if (catLower.includes(q)) score += 5;
+
+      // Token-based matching for multi-word queries (e.g. "AI Summarizer", "PDF to Word")
+      if (words.length > 1) {
+        if (words.every(w => combined.includes(w))) score += 45;
+        if (words.every(w => nameLower.includes(w))) score += 35;
+      }
+      words.forEach(w => {
+        if (w.length >= 2) {
+          if (nameLower.includes(w)) score += 8;
+          if (kw.some(k => k.includes(w))) score += 6;
+        }
+      });
+
+      if (score > 0) {
+        scored.push({ item, score });
+      }
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    currentSearchResults = scored.map(s => s.item);
+    selectedResultIndex = currentSearchResults.length > 0 ? 0 : -1;
+
+    const dropdown = activeMode === 'mobile' ? dropdownMobile : dropdownDesktop;
+    const otherDropdown = activeMode === 'mobile' ? dropdownDesktop : dropdownMobile;
+
+    if (otherDropdown) {
+      otherDropdown.classList.remove('active');
+      otherDropdown.innerHTML = '';
+    }
+
+    if (!dropdown) return;
+
+    if (currentSearchResults.length === 0) {
+      dropdown.innerHTML = `<div class="saas-search-empty" style="padding:20px;text-align:center;color:var(--text-muted);font-size:0.9rem;">No matching tools or workspace items found for "<strong>${escapeHtml(query)}</strong>"</div>`;
+      dropdown.classList.add('active');
+      return;
+    }
+
+    let html = `<ul class="saas-search-results-list" role="listbox">`;
+    currentSearchResults.forEach((item, idx) => {
+      const isSelected = idx === selectedResultIndex;
+      html += `
+        <li class="saas-search-item ${isSelected ? 'selected' : ''}" role="option" aria-selected="${isSelected}" data-index="${idx}" onclick="selectSearchResult(${idx})">
+          <div class="saas-search-item-meta" style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:4px;">
+            <span class="saas-search-item-badge">${escapeHtml(item.badge || item.category)}</span>
+            <span class="tool-tier-badge ${item.tier === 'FREE' ? 'free' : 'pro'}">${item.tier === 'FREE' ? 'Free' : 'PRO'}</span>
+          </div>
+          <div class="saas-search-item-info">
+            <div class="saas-search-item-title">${highlightMatches(item.name, query)}</div>
+            <div class="saas-search-item-desc">${escapeHtml(item.desc)}</div>
+          </div>
+        </li>
+      `;
+    });
+    html += `</ul>`;
+    dropdown.innerHTML = html;
+    dropdown.classList.add('active');
+  }
+
+  window.handleToolSearchInput = function(val, mode = 'desktop') {
+    const inputDesktop = document.getElementById('saas-search-input');
+    const inputMobile = document.getElementById('saas-search-input-mobile');
+    if (mode === 'desktop' && inputMobile && inputMobile.value !== val) {
+      inputMobile.value = val;
+    } else if (mode === 'mobile' && inputDesktop && inputDesktop.value !== val) {
+      inputDesktop.value = val;
+    }
+
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+      executeToolSearch(val, mode);
+    }, 150);
   };
 
-  // Keyboard shortcut Ctrl+K
+  window.selectSearchResult = function(index) {
+    const item = currentSearchResults[index];
+    if (!item) return;
+
+    // Close dropdowns
+    const dropdownDesktop = document.getElementById('saas-search-dropdown');
+    const dropdownMobile = document.getElementById('saas-search-dropdown-mobile');
+    if (dropdownDesktop) { dropdownDesktop.classList.remove('active'); dropdownDesktop.innerHTML = ''; }
+    if (dropdownMobile) { dropdownMobile.classList.remove('active'); dropdownMobile.innerHTML = ''; }
+
+    // Clear inputs and restore tool card visibility on pages
+    const inputDesktop = document.getElementById('saas-search-input');
+    const inputMobile = document.getElementById('saas-search-input-mobile');
+    if (inputDesktop) inputDesktop.value = '';
+    if (inputMobile) inputMobile.value = '';
+    const clearDesktop = document.getElementById('saas-search-clear');
+    const clearMobile = document.getElementById('saas-search-clear-mobile');
+    if (clearDesktop) clearDesktop.style.display = 'none';
+    if (clearMobile) clearMobile.style.display = 'none';
+    document.querySelectorAll('.saas-tool-card').forEach(card => {
+      card.style.display = 'flex';
+    });
+
+    // Execute action
+    if (typeof item.action === 'function') {
+      item.action();
+    }
+  };
+
+  window.clearToolSearch = function(mode = 'desktop') {
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    const inputDesktop = document.getElementById('saas-search-input');
+    const inputMobile = document.getElementById('saas-search-input-mobile');
+    if (inputDesktop) inputDesktop.value = '';
+    if (inputMobile) inputMobile.value = '';
+    executeToolSearch('', mode);
+    document.querySelectorAll('.saas-tool-card').forEach(card => {
+      card.style.display = 'flex';
+    });
+    if (mode === 'desktop' && inputDesktop) inputDesktop.focus();
+    if (mode === 'mobile' && inputMobile) inputMobile.focus();
+  };
+
+  window.filterTools = function(query) {
+    executeToolSearch(query, 'desktop');
+  };
+
+  function updateActiveSearchItem(dropdown) {
+    const items = dropdown.querySelectorAll('.saas-search-item');
+    items.forEach((el, idx) => {
+      if (idx === selectedResultIndex) {
+        el.classList.add('selected');
+        el.setAttribute('aria-selected', 'true');
+        el.scrollIntoView({ block: 'nearest' });
+      } else {
+        el.classList.remove('selected');
+        el.setAttribute('aria-selected', 'false');
+      }
+    });
+  }
+
+  function setupSearchKeyNavigation(inputEl, mode) {
+    if (!inputEl) return;
+    inputEl.addEventListener('keydown', e => {
+      const dropdown = document.getElementById(mode === 'mobile' ? 'saas-search-dropdown-mobile' : 'saas-search-dropdown');
+      if (!dropdown || !dropdown.classList.contains('active')) {
+        if (e.key === 'ArrowDown' && inputEl.value.trim()) {
+          executeToolSearch(inputEl.value.trim(), mode);
+          e.preventDefault();
+        }
+        return;
+      }
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (currentSearchResults.length > 0) {
+          selectedResultIndex = (selectedResultIndex + 1) % currentSearchResults.length;
+          updateActiveSearchItem(dropdown);
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (currentSearchResults.length > 0) {
+          selectedResultIndex = (selectedResultIndex - 1 + currentSearchResults.length) % currentSearchResults.length;
+          updateActiveSearchItem(dropdown);
+        }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (currentSearchResults.length > 0) {
+          const targetIndex = selectedResultIndex >= 0 ? selectedResultIndex : 0;
+          window.selectSearchResult(targetIndex);
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        window.clearToolSearch(mode);
+      }
+    });
+  }
+
+  // Close dropdown on outside click
+  document.addEventListener('click', e => {
+    const deskWrap = document.getElementById('desktop-search-wrap');
+    const mobWrap = document.getElementById('mobile-search-wrap');
+    if (deskWrap && !deskWrap.contains(e.target)) {
+      const d = document.getElementById('saas-search-dropdown');
+      if (d) d.classList.remove('active');
+    }
+    if (mobWrap && !mobWrap.contains(e.target)) {
+      const m = document.getElementById('saas-search-dropdown-mobile');
+      if (m) m.classList.remove('active');
+    }
+  });
+
+  // Shortcut Ctrl+K
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       const input = document.getElementById('saas-search-input');
-      if (input) input.focus();
+      if (input) {
+        input.focus();
+        input.select();
+      }
     }
   });
 
@@ -1371,6 +1821,9 @@
     try {
       const savedTheme = localStorage.getItem('pdfme-theme') || 'light';
       applyTheme(savedTheme);
+
+      setupSearchKeyNavigation(document.getElementById('saas-search-input'), 'desktop');
+      setupSearchKeyNavigation(document.getElementById('saas-search-input-mobile'), 'mobile');
 
       const savedUser = localStorage.getItem('pdfme-user');
       if (savedUser) {

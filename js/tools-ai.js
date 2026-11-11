@@ -27,7 +27,8 @@ async function callAiApi(endpoint, payload) {
     } catch (e) {}
   }
 
-  const response = await fetch(endpoint, {
+  const fetcher = (typeof window !== 'undefined' && window.apiFetch) ? window.apiFetch : fetch;
+  const response = await fetcher(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -94,7 +95,8 @@ async function getDocumentInsights(documentText, pages) {
  * 8. Get AI Config / Env status
  */
 async function getAiConfig() {
-  const res = await fetch('/api/ai/config');
+  const fetcher = (typeof window !== 'undefined' && window.apiFetch) ? window.apiFetch : fetch;
+  const res = await fetcher('/api/ai/config');
   return await res.json();
 }
 

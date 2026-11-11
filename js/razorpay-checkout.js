@@ -140,7 +140,8 @@
         receipt: customReceipt || ('rcpt_' + Date.now().toString(36))
       };
 
-      const orderRes = await fetch('/api/create-order', {
+      const fetcher = (typeof window !== 'undefined' && window.apiFetch) ? window.apiFetch : fetch;
+      const orderRes = await fetcher('/api/create-order', {
         method: 'POST',
         headers: authHeaders,
         body: JSON.stringify(orderPayload)
@@ -207,7 +208,8 @@
               billingCycle: billingCycle || 'monthly'
             };
 
-            const verifyRes = await fetch('/api/verify-payment', {
+            const fetcher = (typeof window !== 'undefined' && window.apiFetch) ? window.apiFetch : fetch;
+            const verifyRes = await fetcher('/api/verify-payment', {
               method: 'POST',
               headers: authHeaders,
               body: JSON.stringify(verifyPayload)
@@ -321,10 +323,8 @@
     if (!container) return;
 
     try {
-      const token = localStorage.getItem('pdfme-token');
-      const res = await fetch('/api/billing/history', {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-      });
+      const fetcher = (typeof window !== 'undefined' && window.apiFetch) ? window.apiFetch : fetch;
+      const res = await fetcher('/api/billing/history');
       const data = await res.json();
       const list = data.billingHistory || [];
 
@@ -357,7 +357,8 @@
   // Initialize payment gateway configuration and check DEBUG mode
   document.addEventListener('DOMContentLoaded', async () => {
     try {
-      const res = await fetch('/api/payment-config');
+      const fetcher = (typeof window !== 'undefined' && window.apiFetch) ? window.apiFetch : fetch;
+      const res = await fetcher('/api/payment-config');
       if (res.ok) {
         const cfg = await res.json();
         if (cfg.isDebug || window.PDFME_DEBUG) {
