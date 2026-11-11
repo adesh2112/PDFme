@@ -125,5 +125,6 @@ if (typeof window !== 'undefined') {
     getDocumentInsights,
     getAiConfig
   };
+  Object.assign(window, window.AiPdfTools);
 }
 

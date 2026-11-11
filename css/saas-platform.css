@@ -629,7 +629,6 @@ body:not(.light-theme) .mobile-action-btn.mobile-theme-btn.circular-theme-toggle
 .workspace-folder-card:hover {
   border-color: var(--saas-accent);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  transform: translateY(-1px);
 }
 
 .mobile-action-btn:not(.mobile-theme-btn) {
@@ -657,7 +656,6 @@ body:not(.light-theme) .mobile-action-btn.mobile-theme-btn.circular-theme-toggle
 .mobile-action-btn:not(.mobile-theme-btn):hover,
 .mobile-action-btn:not(.mobile-theme-btn):active {
   border-color: var(--saas-accent);
-  transform: translateY(-1px);
 }
 
 .mobile-action-btn svg {
@@ -1051,13 +1049,10 @@ html, body {
   padding: 28px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
   box-sizing: border-box;
-  transform: translateY(12px);
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
 }
 
 .auth-modal-backdrop.active .auth-modal-box {
-  transform: translateY(0);
 }
 
 .auth-tabs-row {
@@ -1279,7 +1274,7 @@ html, body {
 }
 
 .pricing-card:hover {
-  transform: translateY(-4px);
+  border-color: var(--saas-accent);
 }
 
 .pricing-badge {
@@ -1399,8 +1394,7 @@ html, body {
 
 .saas-tool-card:hover {
   border-color: var(--saas-accent);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
 .saas-tool-card-top {
@@ -1528,7 +1522,6 @@ html, body {
 .org-card:hover {
   border-color: var(--saas-accent);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
 }
 
 .org-card.is-deleted {
@@ -1656,8 +1649,6 @@ html, body {
   padding: 24px !important;
   box-shadow: 0 25px 60px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 216, 77, 0.08) !important;
   box-sizing: border-box !important;
-  transform: translateY(18px) scale(0.97) !important;
-  transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1) !important;
   position: relative !important;
   max-height: 90vh !important;
   display: flex !important;
@@ -1666,7 +1657,6 @@ html, body {
 }
 
 .saas-modal-backdrop.active .saas-modal-box {
-  transform: translateY(0) scale(1) !important;
 }
 
 .saas-modal-header {
@@ -1965,8 +1955,7 @@ body.light-theme .saas-search-item-badge {
 
 .workspace-folder-card:hover {
   border-color: var(--saas-accent, #F4B942);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 
 body.light-theme .workspace-folder-card {

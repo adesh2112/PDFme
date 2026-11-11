@@ -223,22 +223,32 @@ const screens = {
   merge: document.getElementById('screen-merge'),
   photos: document.getElementById('screen-photos'),
   edit: document.getElementById('screen-edit'),
+  tool: document.getElementById('screen-tool'),
+  convert: document.getElementById('screen-convert'),
+  organize: document.getElementById('screen-organize'),
+  ai: document.getElementById('screen-ai'),
+  security: document.getElementById('screen-security'),
+  business: document.getElementById('screen-business'),
+  workspace: document.getElementById('screen-workspace'),
+  pricing: document.getElementById('screen-pricing'),
 };
+window.screens = screens;
 const header = document.getElementById('header');
 let currentScreen = 'home';
 
 function navigate(id, reverse = false) {
-  if (currentScreen === id) return;
-  const from = screens[currentScreen];
-  const to = screens[id];
+  const from = screens[currentScreen] || document.getElementById('screen-' + currentScreen) || document.querySelector('.screen.active');
+  const to = screens[id] || document.getElementById('screen-' + id);
+  if (!to) return;
+  if (currentScreen === id && to.classList.contains('active')) return;
   currentScreen = id;
 
-  from.classList.remove('active');
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   to.classList.add('active');
   header.setAttribute('data-show-back', id !== 'home' ? 'true' : 'false');
   document.title = id === 'home'
-    ? `${APP_NAME} — Browser PDF Toolkit`
-    : `${APP_NAME} — ${to.querySelector('h2')?.textContent || id}`;
+    ? `${APP_NAME} — Complete In-Browser PDF Toolkit & Productivity Suite`
+    : `${APP_NAME} — ${to.querySelector('h1, h2, .saas-category-title')?.textContent || id}`;
 
   if (id === 'edit') {
     document.getElementById('toolbar').classList.add('visible');
@@ -253,6 +263,8 @@ function navigate(id, reverse = false) {
 
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
+
+window.navigate = navigate;
 
 document.getElementById('back-btn').addEventListener('click', () => navigate('home', true));
 document.getElementById('logo-btn').addEventListener('click', (e) => { e.preventDefault(); navigate('home', true); });

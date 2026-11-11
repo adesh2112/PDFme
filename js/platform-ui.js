@@ -162,6 +162,7 @@
     'screen-merge',
     'screen-photos',
     'screen-edit',
+    'screen-tool',
     'screen-convert',
     'screen-organize',
     'screen-ai',
@@ -928,20 +929,20 @@
             </p>
           </div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-            <label class="btn btn-primary btn-sm" style="cursor:pointer;padding:8px 16px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              <span>+ Upload PDF</span>
-              <input type="file" accept=".pdf" style="display:none;" onchange="handleWorkspaceFileUpload(event)">
-            </label>
-            <button class="btn btn-ghost btn-sm" onclick="promptCreateFolder()" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;border:1px solid var(--border);color:var(--text);font-weight:600;">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <button class="btn btn-primary btn-sm btn-new-folder" onclick="promptCreateFolder()" style="display:inline-flex;align-items:center;gap:7px;padding:8px 18px;border-radius:9px;font-weight:700;font-size:0.875rem;background:#FFD84D;color:#292929;border:1px solid #F4B942;cursor:pointer;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                 <line x1="12" y1="11" x2="12" y2="17"/>
                 <line x1="9" y1="14" x2="15" y2="14"/>
               </svg>
               <span>New Folder</span>
             </button>
-            <button class="btn btn-ghost btn-sm" onclick="handleLogout()" style="color:var(--danger);display:inline-flex;align-items:center;gap:6px;">
+            <label class="btn btn-ghost btn-sm" style="cursor:pointer;padding:8px 16px;border-radius:9px;border:1px solid var(--border);display:inline-flex;align-items:center;gap:7px;font-weight:600;font-size:0.875rem;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>+ Upload PDF</span>
+              <input type="file" accept=".pdf" style="display:none;" onchange="handleWorkspaceFileUpload(event)">
+            </label>
+            <button class="btn btn-ghost btn-sm" onclick="handleLogout()" style="color:var(--danger);display:inline-flex;align-items:center;gap:6px;padding:8px 14px;">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
               <span>Sign Out</span>
             </button>
@@ -1098,23 +1099,24 @@
               <div class="workspace-folders-grid">
                 ${folders.map(f => {
                   const count = docs.filter(d => d.folderId === f.id).length;
+                  const updatedText = f.updatedAt ? new Date(f.updatedAt).toLocaleDateString() : 'Recently';
                   return `
                     <div class="workspace-folder-card" onclick="openWorkspaceFolder('${f.id}')">
                       <div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1;">
-                        <div class="folder-svg-icon" style="width:38px;height:38px;border-radius:10px;background:rgba(244,185,66,0.18);display:flex;align-items:center;justify-content:center;color:var(--saas-accent);flex-shrink:0;">
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <div class="folder-svg-icon" style="width:40px;height:40px;border-radius:10px;background:rgba(255,216,77,0.22);border:1px solid rgba(244,185,66,0.35);display:flex;align-items:center;justify-content:center;color:var(--saas-accent);flex-shrink:0;">
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                           </svg>
                         </div>
                         <div style="min-width:0;flex:1;">
-                          <h4 style="font-size:0.925rem;font-weight:700;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeAttr(f.name)}">${escapeHtml(f.name)}</h4>
-                          <span style="font-size:0.75rem;color:var(--text-muted);display:inline-block;margin-top:2px;">${count} ${count === 1 ? 'document' : 'documents'}</span>
+                          <h4 style="font-size:0.95rem;font-weight:700;margin:0 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeAttr(f.name)}">${escapeHtml(f.name)}</h4>
+                          <span style="font-size:0.75rem;color:var(--text-muted);display:inline-block;">${count} ${count === 1 ? 'document' : 'documents'} · Updated ${updatedText}</span>
                         </div>
                       </div>
                       <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;" onclick="event.stopPropagation()">
-                        <button class="btn btn-ghost btn-sm" title="Open Folder" onclick="openWorkspaceFolder('${f.id}')" style="padding:4px 8px;font-size:0.75rem;border:1px solid var(--border);border-radius:6px;">Open</button>
-                        <button class="btn btn-ghost btn-sm" title="Rename Folder" onclick="promptRenameFolder('${f.id}', '${escapeAttr(f.name)}')" style="padding:4px 8px;font-size:0.75rem;border:1px solid var(--border);border-radius:6px;">✎</button>
-                        <button class="btn btn-ghost btn-sm" title="Delete Folder" onclick="confirmDeleteFolder('${f.id}', '${escapeAttr(f.name)}')" style="padding:4px 8px;font-size:0.75rem;color:var(--danger);border:1px solid var(--border);border-radius:6px;">✕</button>
+                        <button class="btn btn-ghost btn-sm" title="Open Folder" onclick="openWorkspaceFolder('${f.id}')" style="padding:5px 10px;font-size:0.8rem;border:1px solid var(--border);border-radius:6px;font-weight:600;">Open</button>
+                        <button class="btn btn-ghost btn-sm" title="Rename Folder" onclick="promptRenameFolder('${f.id}', '${escapeAttr(f.name)}')" style="padding:5px 9px;font-size:0.8rem;border:1px solid var(--border);border-radius:6px;">✎</button>
+                        <button class="btn btn-ghost btn-sm" title="Delete Folder" onclick="confirmDeleteFolder('${f.id}', '${escapeAttr(f.name)}')" style="padding:5px 9px;font-size:0.8rem;color:var(--danger);border:1px solid var(--border);border-radius:6px;">✕</button>
                       </div>
                     </div>
                   `;
